@@ -1,156 +1,205 @@
 'use client';
 
 import { useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import Link from 'next/link';
 
 export default function Home() {
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [data, setData] = useState<any>(null);
+  const [result, setResult] = useState<{
+    merchant_name?: string;
+    purchased_at?: string;
+    total_amount?: number;
+    category?: string;
+  } | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      const base64 = reader.result as string;
-      setImagePreview(base64);
-      await parseReceipt(base64);
-    };
-    reader.readAsDataURL(file);
+  // ファイル選択
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setFile(e.target.files[0]);
+      setResult(null);
+      setSaveSuccess(false);
+    }
   };
 
-  const parseReceipt = async (base64Image: string) => {
+  // Gemini API でレシート解析
+  const handleUpload = async () => {
+    if (!file) return;
     setLoading(true);
-    setData(null);
+    setSaveSuccess(false);
+
     try {
+      const formData = new FormData();
+      formData.append('file', file);
+
       const res = await fetch('/api/parse-receipt', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: base64Image }),
+        body: formData,
       });
 
-      const resData = await res.json();
-      if (resData.success) {
-        setData(resData.data);
+      const data = await res.json();
+      if (data.success) {
+        setResult(data.data);
       } else {
-        alert('解析エラー: ' + resData.error);
+        alert('レシートの解析に失敗しました: ' + (data.error || '不明なエラー'));
       }
-    } catch (err) {
-      alert('通信エラーが発生しました');
+    } catch (err: any) {
+      alert('エラーが発生しました: ' + err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // Supabaseにデータを保存する処理
+  // Supabase へ保存
   const handleSave = async () => {
-    if (!data) return;
-    setSaving(true);
+    if (!result) return;
+    setLoading(true);
 
     try {
-      const { error } = await supabase.from('transactions').insert([
-        {
-          merchant_name: data.merchantName,
-          purchased_at: data.purchasedAt,
-          total_amount: data.totalAmount,
-          category: data.category,
-          items: data.items,
-        },
-      ]);
+      const res = await fetch('/api/transactions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(result),
+      });
 
-      if (error) throw error;
-
-      alert('家計簿に保存しました！');
-      setData(null);
-      setImagePreview(null);
+      const data = await res.json();
+      if (data.success) {
+        setSaveSuccess(true);
+        setResult(null);
+        setFile(null);
+      } else {
+        alert('保存に失敗しました: ' + (data.error || '不明なエラー'));
+      }
     } catch (err: any) {
-      alert('保存に失敗しました: ' + err.message);
+      alert('エラーが発生しました: ' + err.message);
     } finally {
-      setSaving(false);
+      setLoading(false);
     }
   };
 
   return (
-    <main className="max-w-md mx-auto p-4 min-h-screen bg-gray-50 text-gray-800 pb-12">
-      <h1 className="text-2xl font-bold mb-6 text-center text-gray-900">レシート家計簿</h1>
+    <main className="min-h-screen bg-slate-50 p-4 max-w-md mx-auto pb-20">
+      <h1 className="text-2xl font-bold text-center text-slate-800 my-4">
+        レシート家計簿
+      </h1>
 
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6">
-        <label className="block text-sm font-semibold mb-2">レシートを撮影・選択</label>
+      {/* ナビゲーションボタン */}
+      <div className="flex gap-2 mb-6">
+        <Link
+          href="/dashboard"
+          className="flex-1 py-2 px-3 bg-indigo-600 text-white rounded-lg font-medium text-center hover:bg-indigo-700 transition shadow-sm text-sm"
+        >
+          📊 ダッシュボードを見る
+        </Link>
+      </div>
+
+      {/* 保存完了メッセージ */}
+      {saveSuccess && (
+        <div className="mb-4 p-3 bg-emerald-100 text-emerald-800 rounded-lg text-sm text-center font-medium border border-emerald-200 flex flex-col gap-2">
+          <span>✅ 取引データを保存しました！</span>
+          <Link href="/dashboard" className="underline text-emerald-900 font-bold">
+            ダッシュボードで確認する →
+          </Link>
+        </div>
+      )}
+
+      {/* レシート画像選択・撮影エリア */}
+      <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mb-6">
+        <h2 className="text-base font-semibold text-slate-700 mb-3">
+          レシートを撮影・選択
+        </h2>
         <input
           type="file"
           accept="image/*"
           capture="environment"
-          onChange={handleImageChange}
-          disabled={loading}
-          className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+          onChange={handleFileChange}
+          className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition mb-4 cursor-pointer"
         />
 
-        {imagePreview && (
-          <div className="mt-4 relative">
-            <img src={imagePreview} alt="Receipt" className="w-full max-h-60 object-contain rounded-lg border" />
-            {loading && (
-              <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center text-white font-bold animate-pulse">
-                Geminiで解析中...
-              </div>
-            )}
-          </div>
+        {file && (
+          <button
+            onClick={handleUpload}
+            disabled={loading}
+            className="w-full py-2.5 bg-indigo-600 text-white font-medium rounded-xl hover:bg-indigo-700 disabled:bg-slate-300 transition"
+          >
+            {loading ? '解析中...' : 'レシートを解析する'}
+          </button>
         )}
       </div>
 
-      {data && (
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 space-y-4">
-          <h2 className="text-lg font-bold border-b pb-2 text-gray-900">内容の確認・補正</h2>
+      {/* 解析結果の確認・編集フォーム */}
+      {result && (
+        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col gap-4">
+          <h2 className="text-base font-semibold text-slate-700 border-b pb-2">
+            解析結果の確認
+          </h2>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1">店舗名</label>
+            <label className="block text-xs font-medium text-slate-500 mb-1">
+              店舗名
+            </label>
             <input
               type="text"
-              value={data.merchantName}
-              onChange={(e) => setData({ ...data, merchantName: e.target.value })}
-              className="w-full p-2 border rounded-md"
+              value={result.merchant_name || ''}
+              onChange={(e) =>
+                setResult({ ...result, merchant_name: e.target.value })
+              }
+              className="w-full p-2 border rounded-lg text-slate-800 text-sm focus:outline-indigo-500"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-1">日付</label>
-              <input
-                type="date"
-                value={data.purchasedAt}
-                onChange={(e) => setData({ ...data, purchasedAt: e.target.value })}
-                className="w-full p-2 border rounded-md"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-1">金額</label>
-              <input
-                type="number"
-                value={data.totalAmount}
-                onChange={(e) => setData({ ...data, totalAmount: Number(e.target.value) })}
-                className="w-full p-2 border rounded-md font-bold text-blue-600"
-              />
-            </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">
+              購入日時
+            </label>
+            <input
+              type="date"
+              value={result.purchased_at?.slice(0, 10) || ''}
+              onChange={(e) =>
+                setResult({ ...result, purchased_at: e.target.value })
+              }
+              className="w-full p-2 border rounded-lg text-slate-800 text-sm focus:outline-indigo-500"
+            />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1">カテゴリ</label>
+            <label className="block text-xs font-medium text-slate-500 mb-1">
+              合計金額（円）
+            </label>
+            <input
+              type="number"
+              value={result.total_amount || ''}
+              onChange={(e) =>
+                setResult({
+                  ...result,
+                  total_amount: Number(e.target.value),
+                })
+              }
+              className="w-full p-2 border rounded-lg text-slate-800 text-sm focus:outline-indigo-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">
+              カテゴリ
+            </label>
             <input
               type="text"
-              value={data.category}
-              onChange={(e) => setData({ ...data, category: e.target.value })}
-              className="w-full p-2 border rounded-md"
+              value={result.category || ''}
+              onChange={(e) =>
+                setResult({ ...result, category: e.target.value })
+              }
+              className="w-full p-2 border rounded-lg text-slate-800 text-sm focus:outline-indigo-500"
             />
           </div>
 
           <button
             onClick={handleSave}
-            disabled={saving}
-            className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-colors"
+            disabled={loading}
+            className="w-full mt-2 py-2.5 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 disabled:bg-slate-300 transition"
           >
-            {saving ? '保存中...' : '家計簿に保存する'}
+            {loading ? '保存中...' : '家計簿に保存する'}
           </button>
         </div>
       )}
