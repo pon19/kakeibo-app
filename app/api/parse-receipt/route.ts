@@ -18,7 +18,8 @@ export async function POST(req: NextRequest) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    // モデル名を gemini-3.5-flash に設定
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash' });
 
     const prompt = `Analyze this receipt image and extract the following details in JSON format ONLY:
     {
@@ -41,13 +42,12 @@ export async function POST(req: NextRequest) {
 
     const responseText = await result.response.text();
 
-    // マークダウンの枠（```json ... ```）が含まれていた場合に取り除く処理
+    // マークダウン記号（```json ... ```）を取り除く処理
     const cleanedText = responseText
       .replace(/```json/g, '')
       .replace(/```/g, '')
       .trim();
 
-    // 安全にJSONとしてパース
     const parsedData = JSON.parse(cleanedText);
 
     return NextResponse.json({ success: true, data: parsedData });
