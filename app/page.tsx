@@ -14,6 +14,8 @@ interface ParsedReceipt {
   purchased_at?: string;
   total_amount?: number;
   category?: string;
+  tax_type?: 'inclusive' | 'exclusive'; // 内税 / 外税 を追加
+  tax_amount?: number; // 消費税額 を追加
   items?: ReceiptItem[];
 }
 
@@ -76,6 +78,8 @@ export default function Home() {
       purchased_at: result.purchased_at,
       total_amount: result.total_amount,
       category: result.category,
+      tax_type: result.tax_type || 'inclusive',
+      tax_amount: result.tax_amount || 0,
       items: result.items || [],
     };
 
@@ -217,7 +221,7 @@ export default function Home() {
       {result && (
         <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col gap-4">
           <h2 className="text-base font-semibold text-slate-700 border-b pb-2">
-            解析結果の確認
+            解析結果の確認・修正
           </h2>
 
           <div>
@@ -248,6 +252,46 @@ export default function Home() {
             />
           </div>
 
+          {/* 税区分・消費税額 入力フォーム領域 */}
+          <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                税区分
+              </label>
+              <select
+                value={result.tax_type || 'inclusive'}
+                onChange={(e) =>
+                  setResult({
+                    ...result,
+                    tax_type: e.target.value as 'inclusive' | 'exclusive',
+                  })
+                }
+                className="w-full p-2 border rounded-lg text-slate-800 text-sm bg-white focus:outline-indigo-500"
+              >
+                <option value="inclusive">内税（税込）</option>
+                <option value="exclusive">外税（税別）</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                消費税額（円）
+              </label>
+              <input
+                type="number"
+                placeholder="例: 100"
+                value={result.tax_amount ?? 0}
+                onChange={(e) =>
+                  setResult({
+                    ...result,
+                    tax_amount: Number(e.target.value),
+                  })
+                }
+                className="w-full p-2 border rounded-lg text-slate-800 text-sm bg-white focus:outline-indigo-500"
+              />
+            </div>
+          </div>
+
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1">
               合計金額（円）
@@ -261,7 +305,7 @@ export default function Home() {
                   total_amount: Number(e.target.value),
                 })
               }
-              className="w-full p-2 border rounded-lg text-slate-800 text-sm focus:outline-indigo-500"
+              className="w-full p-2 border rounded-lg text-slate-800 text-sm focus:outline-indigo-500 font-bold"
             />
           </div>
 
