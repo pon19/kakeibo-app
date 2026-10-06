@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 
 interface ReceiptItem {
   name: string;
   price: number;
   quantity: number;
+  tax_rate: number; // 8 または 10
 }
 
 interface ParsedReceipt {
@@ -14,8 +15,8 @@ interface ParsedReceipt {
   purchased_at?: string;
   total_amount?: number;
   category?: string;
-  tax_type?: 'inclusive' | 'exclusive'; // 内税 / 外税 を追加
-  tax_amount?: number; // 消費税額 を追加
+  tax_type?: 'inclusive' | 'exclusive';
+  tax_amount?: number;
   items?: ReceiptItem[];
 }
 
@@ -28,6 +29,32 @@ export default function Home() {
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const libraryInputRef = useRef<HTMLInputElement>(null);
+
+  // 明細・税区分が変更された際に消費税額と合計金額を自動計算
+  useEffect(() => {
+    if (!result || !result.items) return;
+
+    if (result.tax_type === 'exclusive') {
+      let calculatedTax = 0;
+      let itemsSubtotal = 0;
+
+      result.items.forEach((item) => {
+        const itemTotal = (item.price || 0) * (item.quantity || 1);
+        itemsSubtotal += itemTotal;
+        calculatedTax += Math.floor(itemTotal * ((item.tax_rate || 10) / 100));
+      });
+
+      setResult((prev) =>
+        prev
+          ? {
+              ...prev,
+              tax_amount: calculatedTax,
+              total_amount: itemsSubtotal + calculatedTax,
+            }
+          : null
+      );
+    }
+  }, [result?.tax_type, JSON.stringify(result?.items)]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -54,15 +81,12 @@ export default function Home() {
       });
 
       const data = await res.json();
-      console.log('[DEBUG 3] Front Received Parse Result:', data);
-
       if (data.success) {
         setResult(data.data);
       } else {
         alert('レシートの解析に失敗しました: ' + (data.error || '不明なエラー'));
       }
     } catch (err: any) {
-      console.error('[ERROR] handleUpload:', err);
       alert('エラーが発生しました: ' + err.message);
     } finally {
       setLoading(false);
@@ -83,8 +107,6 @@ export default function Home() {
       items: result.items || [],
     };
 
-    console.log('[DEBUG 3-1] Sending Payload from Front:', payload);
-
     try {
       const res = await fetch('/api/receipts', {
         method: 'POST',
@@ -93,8 +115,6 @@ export default function Home() {
       });
 
       const data = await res.json();
-      console.log('[DEBUG 3-2] Save Response from API:', data);
-
       if (data.success) {
         setSaveSuccess(true);
         setResult(null);
@@ -104,7 +124,6 @@ export default function Home() {
         alert('保存に失敗しました: ' + (data.error || '不明なエラー'));
       }
     } catch (err: any) {
-      console.error('[ERROR] handleSave:', err);
       alert('エラーが発生しました: ' + err.message);
     } finally {
       setLoading(false);
@@ -129,7 +148,7 @@ export default function Home() {
     const currentItems = result.items || [];
     setResult({
       ...result,
-      items: [...currentItems, { name: '', price: 0, quantity: 1 }],
+      items: [...currentItems, { name: '', price: 0, quantity: 1, tax_rate: 8 }],
     });
   };
 
@@ -225,109 +244,104 @@ export default function Home() {
           </h2>
 
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">
-              店舗名
-            </label>
+            <label className="block text-xs font-medium text-slate-500 mb-1">店舗名</label>
             <input
               type="text"
               value={result.merchant_name || ''}
-              onChange={(e) =>
-                setResult({ ...result, merchant_name: e.target.value })
-              }
+              onChange={(e) => setResult({ ...result, merchant_name: e.target.value })}
               className="w-full p-2 border rounded-lg text-slate-800 text-sm focus:outline-indigo-500"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">
-              購入日時
-            </label>
+            <label className="block text-xs font-medium text-slate-500 mb-1">購入日時</label>
             <input
               type="date"
               value={result.purchased_at?.slice(0, 10) || ''}
-              onChange={(e) =>
-                setResult({ ...result, purchased_at: e.target.value })
-              }
+              onChange={(e) => setResult({ ...result, purchased_at: e.target.value })}
               className="w-full p-2 border rounded-lg text-slate-800 text-sm focus:outline-indigo-500"
             />
           </div>
 
-          {/* 税区分・消費税額 入力フォーム領域 */}
-          <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+          {/* 税区分 チェック切替領域 */}
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-700">計算モード（税区分）</span>
+              <div className="flex items-center gap-4 text-xs font-medium">
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="tax_type"
+                    value="inclusive"
+                    checked={result.tax_type === 'inclusive'}
+                    onChange={() => setResult({ ...result, tax_type: 'inclusive' })}
+                    className="accent-indigo-600"
+                  />
+                  <span>税込</span>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="tax_type"
+                    value="exclusive"
+                    checked={result.tax_type === 'exclusive'}
+                    onChange={() => setResult({ ...result, tax_type: 'exclusive' })}
+                    className="accent-indigo-600"
+                  />
+                  <span>税別（自動計算）</span>
+                </label>
+              </div>
+            </div>
+
+            {result.tax_type === 'exclusive' && (
+              <div className="text-xs text-indigo-600 bg-indigo-50 p-2 rounded border border-indigo-100">
+                💡 各品目の税率（8%/10%）に基づき消費税額と合計金額を自動計算しています。
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">
-                税区分
-              </label>
-              <select
-                value={result.tax_type || 'inclusive'}
-                onChange={(e) =>
-                  setResult({
-                    ...result,
-                    tax_type: e.target.value as 'inclusive' | 'exclusive',
-                  })
-                }
-                className="w-full p-2 border rounded-lg text-slate-800 text-sm bg-white focus:outline-indigo-500"
-              >
-                <option value="inclusive">内税（税込）</option>
-                <option value="exclusive">外税（税別）</option>
-              </select>
+              <label className="block text-xs font-medium text-slate-500 mb-1">消費税額（円）</label>
+              <input
+                type="number"
+                value={result.tax_amount ?? 0}
+                readOnly={result.tax_type === 'exclusive'}
+                onChange={(e) => setResult({ ...result, tax_amount: Number(e.target.value) })}
+                className={`w-full p-2 border rounded-lg text-sm ${
+                  result.tax_type === 'exclusive' ? 'bg-slate-100 text-slate-600' : 'bg-white text-slate-800'
+                }`}
+              />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">
-                消費税額（円）
-              </label>
+              <label className="block text-xs font-medium text-slate-500 mb-1">合計金額（円）</label>
               <input
                 type="number"
-                placeholder="例: 100"
-                value={result.tax_amount ?? 0}
-                onChange={(e) =>
-                  setResult({
-                    ...result,
-                    tax_amount: Number(e.target.value),
-                  })
-                }
-                className="w-full p-2 border rounded-lg text-slate-800 text-sm bg-white focus:outline-indigo-500"
+                value={result.total_amount || ''}
+                readOnly={result.tax_type === 'exclusive'}
+                onChange={(e) => setResult({ ...result, total_amount: Number(e.target.value) })}
+                className={`w-full p-2 border rounded-lg text-sm font-bold ${
+                  result.tax_type === 'exclusive' ? 'bg-slate-100 text-slate-600' : 'bg-white text-slate-800'
+                }`}
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">
-              合計金額（円）
-            </label>
-            <input
-              type="number"
-              value={result.total_amount || ''}
-              onChange={(e) =>
-                setResult({
-                  ...result,
-                  total_amount: Number(e.target.value),
-                })
-              }
-              className="w-full p-2 border rounded-lg text-slate-800 text-sm focus:outline-indigo-500 font-bold"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">
-              カテゴリ
-            </label>
+            <label className="block text-xs font-medium text-slate-500 mb-1">カテゴリ</label>
             <input
               type="text"
               value={result.category || ''}
-              onChange={(e) =>
-                setResult({ ...result, category: e.target.value })
-              }
+              onChange={(e) => setResult({ ...result, category: e.target.value })}
               className="w-full p-2 border rounded-lg text-slate-800 text-sm focus:outline-indigo-500"
             />
           </div>
 
+          {/* 明細（税率選択付き） */}
           <div className="pt-2 border-t mt-2">
             <div className="flex justify-between items-center mb-2">
-              <label className="block text-xs font-bold text-slate-700">
-                購入品目（明細）
-              </label>
+              <label className="block text-xs font-bold text-slate-700">購入品目（明細）</label>
               <button
                 type="button"
                 onClick={handleAddItem}
@@ -346,15 +360,23 @@ export default function Home() {
                       placeholder="商品名"
                       value={item.name}
                       onChange={(e) => handleItemChange(idx, 'name', e.target.value)}
-                      className="flex-1 p-1.5 border rounded text-xs text-slate-800"
+                      className="flex-1 p-1.5 border rounded text-xs text-slate-800 bg-white"
                     />
                     <input
                       type="number"
                       placeholder="価格"
                       value={item.price}
                       onChange={(e) => handleItemChange(idx, 'price', Number(e.target.value))}
-                      className="w-20 p-1.5 border rounded text-xs text-slate-800"
+                      className="w-16 p-1.5 border rounded text-xs text-slate-800 bg-white"
                     />
+                    <select
+                      value={item.tax_rate || 8}
+                      onChange={(e) => handleItemChange(idx, 'tax_rate', Number(e.target.value))}
+                      className="p-1.5 border rounded text-xs text-slate-800 bg-white font-medium"
+                    >
+                      <option value={8}>8%</option>
+                      <option value={10}>10%</option>
+                    </select>
                     <button
                       type="button"
                       onClick={() => handleRemoveItem(idx)}

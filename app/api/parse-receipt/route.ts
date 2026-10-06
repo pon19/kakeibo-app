@@ -26,21 +26,22 @@ export async function POST(req: NextRequest) {
       "purchased_at": "YYYY-MM-DD",
       "total_amount": 1000,
       "category": "カテゴリ名 (例: 食費, 日用品, 娯楽)",
-      "tax_type": "inclusive", // "inclusive" (内税/税込) または "exclusive" (外税/税別)
-      "tax_amount": 100, // レシートに記載されている消費税額（数値、不明・記載なしの場合は 0）
+      "tax_type": "inclusive", // "inclusive" (税込) または "exclusive" (税別)
       "items": [
         {
           "name": "商品名",
           "price": 500,
-          "quantity": 1
+          "quantity": 1,
+          "tax_rate": 8 // 食料品・飲料（酒類除く）は 8、それ以外（日用品・外食・酒類など）は 10
         }
       ]
     }
 
-    TAX RULE:
-    - Set "tax_type" to "exclusive" IF the receipt explicitly states "税別", "外税", "+消費税", or lists tax added separately to the subtotal.
-    - Set "tax_type" to "inclusive" IF the receipt explicitly states "税込", "内税", "(内消費税等)", or does not specify.
-    - Extract "tax_amount" if listed (e.g. "消費税 100円", "内消費税 80円"). If not explicitly mentioned, return 0.
+    RULES:
+    - Set "tax_type" to "exclusive" IF the receipt states "税別", "外税", "+消費税". Otherwise set to "inclusive".
+    - For each item in "items", determine "tax_rate":
+      * 8 for groceries, food, non-alcoholic drinks (reduced tax rate).
+      * 10 for alcohol, daily necessities, household goods, dining out, etc.
 
     IMPORTANT: Respond ONLY with valid JSON. Do NOT wrap it in markdown code blocks or add any extra text or symbols.`;
 
@@ -55,15 +56,8 @@ export async function POST(req: NextRequest) {
     ]);
 
     const responseText = await result.response.text();
-    console.log('[DEBUG 1] Gemini Raw Response:', responseText);
-
-    const cleanedText = responseText
-      .replace(/```json/g, '')
-      .replace(/```/g, '')
-      .trim();
-
+    const cleanedText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
     const parsedData = JSON.parse(cleanedText);
-    console.log('[DEBUG 2] Parsed Gemini Data:', parsedData);
 
     return NextResponse.json({ success: true, data: parsedData });
   } catch (error: any) {
