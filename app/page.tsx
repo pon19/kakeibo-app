@@ -266,9 +266,9 @@ export default function Home() {
           {/* 税区分 チェック切替領域 */}
           <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-700">計算モード（税区分）</span>
-              <div className="flex items-center gap-4 text-xs font-medium">
-                <label className="flex items-center gap-1.5 cursor-pointer">
+              <span className="text-xs font-bold text-slate-700">計算モード</span>
+              <div className="flex items-center gap-3 text-xs font-medium">
+                <label className="flex items-center gap-1 cursor-pointer bg-white px-2 py-1 rounded border border-slate-200 shadow-sm">
                   <input
                     type="radio"
                     name="tax_type"
@@ -277,9 +277,9 @@ export default function Home() {
                     onChange={() => setResult({ ...result, tax_type: 'inclusive' })}
                     className="accent-indigo-600"
                   />
-                  <span>税込</span>
+                  <span className="text-slate-800 font-semibold">内税（税込）</span>
                 </label>
-                <label className="flex items-center gap-1.5 cursor-pointer">
+                <label className="flex items-center gap-1 cursor-pointer bg-white px-2 py-1 rounded border border-slate-200 shadow-sm">
                   <input
                     type="radio"
                     name="tax_type"
@@ -288,10 +288,22 @@ export default function Home() {
                     onChange={() => setResult({ ...result, tax_type: 'exclusive' })}
                     className="accent-indigo-600"
                   />
-                  <span>税別（自動計算）</span>
+                  <span className="text-slate-800 font-semibold">外税（税別）</span>
                 </label>
               </div>
             </div>
+
+            {/* モード別の説明表示 */}
+            {result.tax_type === 'inclusive' ? (
+              <div className="text-xs text-slate-500 bg-white p-2 rounded border border-slate-100">
+                📝 表示されている合計金額がそのまま支払額（税込）になります。
+              </div>
+            ) : (
+              <div className="text-xs text-indigo-600 bg-indigo-50 p-2 rounded border border-indigo-100 font-medium">
+                💡 各品目の金額（税別）と税率（8%/10%）から、消費税と合計金額を自動計算します。
+              </div>
+            )}
+          </div>
 
             {result.tax_type === 'exclusive' && (
               <div className="text-xs text-indigo-600 bg-indigo-50 p-2 rounded border border-indigo-100">
