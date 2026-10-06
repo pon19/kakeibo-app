@@ -7,7 +7,7 @@ interface ReceiptItem {
   name: string;
   price: number;
   quantity: number;
-  tax_rate: number; // 8 または 10
+  tax_rate: number;
 }
 
 interface ParsedReceipt {
@@ -24,13 +24,12 @@ export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<ParsedReceipt | null>(null);
+  const [result, setResult] = useState<ParsedReceipt null |>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const libraryInputRef = useRef<HTMLInputElement>(null);
 
-  // 明細・税区分が変更された際に消費税額と合計金額を自動計算
   useEffect(() => {
     if (!result || !result.items) return;
 
@@ -159,10 +158,7 @@ export default function Home() {
       </h1>
 
       <div className="flex gap-2 mb-6">
-        <Link
-          href="/dashboard"
-          className="flex-1 py-2 px-3 bg-indigo-600 text-white rounded-lg font-medium text-center hover:bg-indigo-700 transition shadow-sm text-sm"
-        >
+        <Link className="flex-1 py-2 px-3 bg-indigo-600 text-white rounded-lg font-medium text-center hover:bg-indigo-700 transition shadow-sm text-sm" href="/dashboard">
           📊 ダッシュボードを見る
         </Link>
       </div>
@@ -170,7 +166,7 @@ export default function Home() {
       {saveSuccess && (
         <div className="mb-4 p-3 bg-emerald-100 text-emerald-800 rounded-lg text-sm text-center font-medium border border-emerald-200 flex flex-col gap-2">
           <span>✅ 取引データを保存しました！</span>
-          <Link href="/dashboard" className="underline text-emerald-900 font-bold">
+          <Link className="underline text-emerald-900 font-bold" href="/dashboard">
             ダッシュボードで確認する →
           </Link>
         </div>
@@ -301,13 +297,6 @@ export default function Home() {
             ) : (
               <div className="text-xs text-indigo-600 bg-indigo-50 p-2 rounded border border-indigo-100 font-medium">
                 💡 各品目の金額（税別）と税率（8%/10%）から、消費税と合計金額を自動計算します。
-              </div>
-            )}
-          </div>
-
-            {result.tax_type === 'exclusive' && (
-              <div className="text-xs text-indigo-600 bg-indigo-50 p-2 rounded border border-indigo-100">
-                💡 各品目の税率（8%/10%）に基づき消費税額と合計金額を自動計算しています。
               </div>
             )}
           </div>
