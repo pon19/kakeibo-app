@@ -24,7 +24,7 @@ export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<ParsedReceipt null |>(null);
+  const [result, setResult] = useState<ParsedReceipt | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
