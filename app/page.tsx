@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import Link from 'next/link';
 
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{
     merchant_name?: string;
@@ -14,10 +15,16 @@ export default function Home() {
   } | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  // ファイル選択
+  // カメラ・アルバム用の ref
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const libraryInputRef = useRef<HTMLInputElement>(null);
+
+  // ファイル選択共通処理
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
+      const selectedFile = e.target.files[0];
+      setFile(selectedFile);
+      setPreviewUrl(URL.createObjectURL(selectedFile)); // プレビュー生成
       setResult(null);
       setSaveSuccess(false);
     }
@@ -57,17 +64,18 @@ export default function Home() {
     setLoading(true);
 
     try {
-        const res = await fetch('/api/receipts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(result),
-    });
+      const res = await fetch('/api/receipts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(result),
+      });
 
       const data = await res.json();
       if (data.success) {
         setSaveSuccess(true);
         setResult(null);
         setFile(null);
+        setPreviewUrl(null);
       } else {
         alert('保存に失敗しました: ' + (data.error || '不明なエラー'));
       }
@@ -109,13 +117,54 @@ export default function Home() {
         <h2 className="text-base font-semibold text-slate-700 mb-3">
           レシートを撮影・選択
         </h2>
+
+        {/* 非表示の input 要素（カメラ用 / アルバム用） */}
         <input
           type="file"
           accept="image/*"
           capture="environment"
+          ref={cameraInputRef}
           onChange={handleFileChange}
-          className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition mb-4 cursor-pointer"
+          className="hidden"
         />
+        <input
+          type="file"
+          accept="image/*"
+          ref={libraryInputRef}
+          onChange={handleFileChange}
+          className="hidden"
+        />
+
+        {/* ボタン切り替えエリア */}
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <button
+            type="button"
+            onClick={() => cameraInputRef.current?.click()}
+            className="py-3 px-4 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-xl font-medium text-sm flex flex-col items-center justify-center gap-1 hover:bg-indigo-100 transition"
+          >
+            <span className="text-xl">📷</span>
+            <span>カメラで撮影</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => libraryInputRef.current?.click()}
+            className="py-3 px-4 bg-slate-50 border border-slate-200 text-slate-700 rounded-xl font-medium text-sm flex flex-col items-center justify-center gap-1 hover:bg-slate-100 transition"
+          >
+            <span className="text-xl">🖼️</span>
+            <span>アルバムから選択</span>
+          </button>
+        </div>
+
+        {/* 選択画像のプレビュー表示 */}
+        {previewUrl && (
+          <div className="mb-4 flex flex-col items-center">
+            <img
+              src={previewUrl}
+              alt="選択したレシート"
+              className="max-h-48 rounded-lg object-contain border border-slate-200"
+            />
+          </div>
+        )}
 
         {file && (
           <button
