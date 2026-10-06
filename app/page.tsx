@@ -52,12 +52,15 @@ export default function Home() {
       });
 
       const data = await res.json();
+      console.log('[DEBUG 3] Front Received Parse Result:', data);
+
       if (data.success) {
         setResult(data.data);
       } else {
         alert('レシートの解析に失敗しました: ' + (data.error || '不明なエラー'));
       }
     } catch (err: any) {
+      console.error('[ERROR] handleUpload:', err);
       alert('エラーが発生しました: ' + err.message);
     } finally {
       setLoading(false);
@@ -68,14 +71,26 @@ export default function Home() {
     if (!result) return;
     setLoading(true);
 
+    const payload = {
+      merchant_name: result.merchant_name,
+      purchased_at: result.purchased_at,
+      total_amount: result.total_amount,
+      category: result.category,
+      items: result.items || [],
+    };
+
+    console.log('[DEBUG 3-1] Sending Payload from Front:', payload);
+
     try {
       const res = await fetch('/api/receipts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(result),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
+      console.log('[DEBUG 3-2] Save Response from API:', data);
+
       if (data.success) {
         setSaveSuccess(true);
         setResult(null);
@@ -85,13 +100,13 @@ export default function Home() {
         alert('保存に失敗しました: ' + (data.error || '不明なエラー'));
       }
     } catch (err: any) {
+      console.error('[ERROR] handleSave:', err);
       alert('エラーが発生しました: ' + err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // 明細項目の更新処理
   const handleItemChange = (index: number, field: keyof ReceiptItem, value: any) => {
     if (!result || !result.items) return;
     const updatedItems = [...result.items];
@@ -99,14 +114,12 @@ export default function Home() {
     setResult({ ...result, items: updatedItems });
   };
 
-  // 明細行の削除
   const handleRemoveItem = (index: number) => {
     if (!result || !result.items) return;
     const updatedItems = result.items.filter((_, i) => i !== index);
     setResult({ ...result, items: updatedItems });
   };
 
-  // 明細行の追加
   const handleAddItem = () => {
     if (!result) return;
     const currentItems = result.items || [];
@@ -175,7 +188,7 @@ export default function Home() {
             onClick={() => libraryInputRef.current?.click()}
             className="py-3 px-4 bg-slate-50 border border-slate-200 text-slate-700 rounded-xl font-medium text-sm flex flex-col items-center justify-center gap-1 hover:bg-slate-100 transition"
           >
-            <span className="text-xl">🖼️️</span>
+            <span className="text-xl">🖼</span>
             <span>アルバムから選択</span>
           </button>
         </div>
@@ -266,7 +279,6 @@ export default function Home() {
             />
           </div>
 
-          {/* 購入明細リスト表示・編集 */}
           <div className="pt-2 border-t mt-2">
             <div className="flex justify-between items-center mb-2">
               <label className="block text-xs font-bold text-slate-700">

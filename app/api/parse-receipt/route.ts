@@ -20,7 +20,6 @@ export async function POST(req: NextRequest) {
 
     const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash' });
 
-    // 明細 (items) を含む JSON フォーマットのプロンプト
     const prompt = `Analyze this receipt image and extract the details in JSON format ONLY:
     {
       "merchant_name": "店舗名",
@@ -48,6 +47,7 @@ export async function POST(req: NextRequest) {
     ]);
 
     const responseText = await result.response.text();
+    console.log('[DEBUG 1] Gemini Raw Response:', responseText);
 
     const cleanedText = responseText
       .replace(/```json/g, '')
@@ -55,10 +55,11 @@ export async function POST(req: NextRequest) {
       .trim();
 
     const parsedData = JSON.parse(cleanedText);
+    console.log('[DEBUG 2] Parsed Gemini Data (items check):', parsedData.items);
 
     return NextResponse.json({ success: true, data: parsedData });
   } catch (error: any) {
-    console.error('Receipt parsing error:', error);
+    console.error('[ERROR] Receipt parsing error:', error);
     return NextResponse.json(
       { success: false, error: error.message || 'レシートの解析に失敗しました' },
       { status: 500 }
