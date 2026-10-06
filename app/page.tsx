@@ -57,11 +57,11 @@ export default function Home() {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/transactions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(result),
-      });
+        const res = await fetch('/api/receipts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(result),
+    });
 
       const data = await res.json();
       if (data.success) {
