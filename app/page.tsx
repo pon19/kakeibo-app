@@ -27,6 +27,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ParsedReceipt | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const libraryInputRef = useRef<HTMLInputElement>(null);
@@ -38,7 +39,6 @@ export default function Home() {
       let subtotal8 = 0;
       let subtotal10 = 0;
 
-      // 1. 税率ごとの小計を計算（商品値引き反映後の価格）
       result.items.forEach((item) => {
         const itemTotal = (item.price || 0) * (item.quantity || 1);
         if ((item.tax_rate || 10) === 8) {
@@ -51,7 +51,6 @@ export default function Home() {
       const totalSubtotal = subtotal8 + subtotal10;
       const discount = result.discount_amount || 0;
 
-      // 2. 全体値引きがある場合、高い税率(10%)から優先的に引く（実務上の一般的な計算）
       let discountedSubtotal10 = subtotal10;
       let discountedSubtotal8 = subtotal8;
 
@@ -65,12 +64,10 @@ export default function Home() {
         }
       }
 
-      // 3. 各対象額から消費税（端数切捨て）を算出
       const tax8 = Math.floor(discountedSubtotal8 * 0.08);
       const tax10 = Math.floor(discountedSubtotal10 * 0.10);
       const calculatedTax = tax8 + tax10;
 
-      // 4. 合計額の算出
       const finalSubtotalAfterDiscount = Math.max(0, totalSubtotal - discount);
 
       setResult((prev) =>
@@ -92,6 +89,7 @@ export default function Home() {
       setPreviewUrl(URL.createObjectURL(selectedFile));
       setResult(null);
       setSaveSuccess(false);
+      setValidationError(null);
     }
   };
 
@@ -99,6 +97,7 @@ export default function Home() {
     if (!file) return;
     setLoading(true);
     setSaveSuccess(false);
+    setValidationError(null);
 
     try {
       const formData = new FormData();
@@ -122,16 +121,53 @@ export default function Home() {
     }
   };
 
+  // バリデーション関数
+  const validateForm = (): string | null => {
+    if (!result) return 'データが存在しません';
+    if (!result.purchased_at) return '購入日時を入力してください';
+    if (result.total_amount === undefined || result.total_amount === null || isNaN(result.total_amount)) {
+      return '合計金額を入力してください';
+    }
+    if (result.total_amount < 0) {
+      return '合計金額にマイナスの値は指定できません';
+    }
+    if ((result.discount_amount || 0) < 0) {
+      return '値引き額にマイナスの値は指定できません';
+    }
+
+    if (result.items && result.items.length > 0) {
+      for (let i = 0; i < result.items.length; i++) {
+        const item = result.items[i];
+        if (!item.name.trim()) {
+          return `明細 ${i + 1} 行目の商品名を入力してください`;
+        }
+        if (item.price === undefined || item.price === null || isNaN(item.price)) {
+          return `明細 ${i + 1} 行目の金額を入力してください`;
+        }
+      }
+    }
+
+    return null;
+  };
+
   const handleSave = async () => {
     if (!result) return;
+
+    // 保存前バリデーション実行
+    const errorMsg = validateForm();
+    if (errorMsg) {
+      setValidationError(errorMsg);
+      return;
+    }
+    setValidationError(null);
     setLoading(true);
 
     const payload = {
-      merchant_name: result.merchant_name,
+      merchant_name: result.merchant_name || '名称未設定店舗',
       purchased_at: result.purchased_at,
       total_amount: result.total_amount,
       discount_amount: result.discount_amount || 0,
-      category: result.category,
+      category: result.category || '未分類',
       tax_type: result.tax_type || 'inclusive',
       tax_amount: result.tax_amount || 0,
       items: result.items || [],
@@ -173,6 +209,14 @@ export default function Home() {
     setResult({ ...result, items: updatedItems });
   };
 
+  // 全明細を一括削除
+  const handleClearAllItems = () => {
+    if (!result) return;
+    if (window.confirm('すべての購入明細を削除しますか？')) {
+      setResult({ ...result, items: [] });
+    }
+  };
+
   const handleAddItem = () => {
     if (!result) return;
     const currentItems = result.items || [];
@@ -200,6 +244,13 @@ export default function Home() {
           <Link className="underline text-emerald-900 font-bold" href="/dashboard">
             ダッシュボードで確認する →
           </Link>
+        </div>
+      )}
+
+      {validationError && (
+        <div className="mb-4 p-3 bg-rose-100 text-rose-800 rounded-lg text-sm font-medium border border-rose-200 flex items-center justify-between">
+          <span>⚠️ {validationError}</span>
+          <button onClick={() => setValidationError(null)} className="text-rose-500 font-bold text-xs">✕</button>
         </div>
       )}
 
@@ -281,7 +332,7 @@ export default function Home() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">購入日時</label>
+            <label className="block text-xs font-medium text-slate-500 mb-1">購入日時 <span className="text-rose-500">*</span></label>
             <input
               type="date"
               value={result.purchased_at?.slice(0, 10) || ''}
@@ -320,7 +371,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* モード別の説明表示 */}
             {result.tax_type === 'inclusive' ? (
               <div className="text-xs text-slate-500 bg-white p-2 rounded border border-slate-100">
                 📝 表示されている合計金額がそのまま支払額（税込）になります。
@@ -357,7 +407,7 @@ export default function Home() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">合計金額（円）</label>
+              <label className="block text-xs font-medium text-slate-500 mb-1">合計金額（円） <span className="text-rose-500">*</span></label>
               <input
                 type="number"
                 value={result.total_amount || ''}
@@ -380,17 +430,28 @@ export default function Home() {
             />
           </div>
 
-          {/* 明細（税率選択付き） */}
+          {/* 明細（税率選択＆一括削除付き） */}
           <div className="pt-2 border-t mt-2">
             <div className="flex justify-between items-center mb-2">
               <label className="block text-xs font-bold text-slate-700">購入品目（明細）</label>
-              <button
-                type="button"
-                onClick={handleAddItem}
-                className="text-xs bg-indigo-50 text-indigo-600 font-semibold px-2 py-1 rounded hover:bg-indigo-100"
-              >
-                ＋ 品目追加
-              </button>
+              <div className="flex gap-2">
+                {result.items && result.items.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearAllItems}
+                    className="text-xs bg-rose-50 text-rose-600 font-semibold px-2 py-1 rounded hover:bg-rose-100 transition"
+                  >
+                    🗑 一括クリア
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleAddItem}
+                  className="text-xs bg-indigo-50 text-indigo-600 font-semibold px-2 py-1 rounded hover:bg-indigo-100 transition"
+                >
+                  ＋ 品目追加
+                </button>
+              </div>
             </div>
 
             {result.items && result.items.length > 0 ? (
@@ -430,7 +491,9 @@ export default function Home() {
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-slate-400">明細データはありません</p>
+              <p className="text-xs text-slate-400 py-2 text-center border border-dashed rounded-lg bg-slate-50">
+                明細データはありません
+              </p>
             )}
           </div>
 
