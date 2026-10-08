@@ -35,24 +35,50 @@ export default function Home() {
     if (!result || !result.items) return;
 
     if (result.tax_type === 'exclusive') {
-      let calculatedTax = 0;
-      let itemsSubtotal = 0;
+      let subtotal8 = 0;
+      let subtotal10 = 0;
 
+      // 1. 税率ごとの小計を計算（商品値引き反映後の価格）
       result.items.forEach((item) => {
         const itemTotal = (item.price || 0) * (item.quantity || 1);
-        itemsSubtotal += itemTotal;
-        calculatedTax += Math.floor(itemTotal * ((item.tax_rate || 10) / 100));
+        if ((item.tax_rate || 10) === 8) {
+          subtotal8 += itemTotal;
+        } else {
+          subtotal10 += itemTotal;
+        }
       });
 
+      const totalSubtotal = subtotal8 + subtotal10;
       const discount = result.discount_amount || 0;
-      const subtotalAfterDiscount = Math.max(0, itemsSubtotal - discount);
+
+      // 2. 全体値引きがある場合、高い税率(10%)から優先的に引く（実務上の一般的な計算）
+      let discountedSubtotal10 = subtotal10;
+      let discountedSubtotal8 = subtotal8;
+
+      if (discount > 0 && totalSubtotal > 0) {
+        if (subtotal10 >= discount) {
+          discountedSubtotal10 -= discount;
+        } else {
+          const remainingDiscount = discount - subtotal10;
+          discountedSubtotal10 = 0;
+          discountedSubtotal8 = Math.max(0, subtotal8 - remainingDiscount);
+        }
+      }
+
+      // 3. 各対象額から消費税（端数切捨て）を算出
+      const tax8 = Math.floor(discountedSubtotal8 * 0.08);
+      const tax10 = Math.floor(discountedSubtotal10 * 0.10);
+      const calculatedTax = tax8 + tax10;
+
+      // 4. 合計額の算出
+      const finalSubtotalAfterDiscount = Math.max(0, totalSubtotal - discount);
 
       setResult((prev) =>
         prev
           ? {
               ...prev,
               tax_amount: calculatedTax,
-              total_amount: subtotalAfterDiscount + calculatedTax,
+              total_amount: finalSubtotalAfterDiscount + calculatedTax,
             }
           : null
       );

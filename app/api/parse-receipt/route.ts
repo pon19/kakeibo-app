@@ -25,13 +25,13 @@ export async function POST(req: NextRequest) {
       "merchant_name": "店舗名",
       "purchased_at": "YYYY-MM-DD",
       "total_amount": 1000,
-      "discount_amount": 0, // 値引き・割引の合計額（円）。ない場合は 0
+      "discount_amount": 0, // 全体からの割引・クーポン額（円）。個々の商品値引きはここには含めず items[].price に反映すること。
       "category": "カテゴリ名 (例: 食費, 日用品, 娯楽)",
       "tax_type": "inclusive", // "inclusive" (税込) または "exclusive" (税別)
       "items": [
         {
           "name": "商品名",
-          "price": 500,
+          "price": 500, // 単品値引きがある場合は、値引き後の最終単価（税別/税込はレシート表記に従う）
           "quantity": 1,
           "tax_rate": 8
         }
@@ -40,7 +40,8 @@ export async function POST(req: NextRequest) {
 
     RULES:
     - Set "tax_type" to "exclusive" IF the receipt states "税別", "外税", "+消費税". Otherwise set to "inclusive".
-    - Sum up any discounts or coupon deductions into "discount_amount".
+    - For item-specific discounts (e.g. "-20円", "20円引"), subtract it directly from that item's "price".
+    - Store ONLY store-wide or subtotal coupons/discounts (e.g., "合計から100円引き") in "discount_amount".
     - For each item in "items", determine "tax_rate":
       * 8 for groceries, food, non-alcoholic drinks (reduced tax rate).
       * 10 for alcohol, daily necessities, household goods, dining out, etc.
