@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
+import { compressImage } from '@/lib/imageCompressor'; // ← 圧縮ユーティリティをインポート
 
 interface ReceiptItem {
   name: string;
@@ -25,6 +26,7 @@ export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingText, setLoadingText] = useState('レシートを解析中...');
   const [result, setResult] = useState<ParsedReceipt | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -100,8 +102,14 @@ export default function Home() {
     setValidationError(null);
 
     try {
+      // 1. 画像圧縮処理
+      setLoadingText('画像を最適化中...');
+      const compressedFile = await compressImage(file);
+
+      // 2. 解析リクエスト送信
+      setLoadingText('AIでレシートを解析中...');
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', compressedFile);
 
       const res = await fetch('/api/parse-receipt', {
         method: 'POST',
@@ -118,10 +126,10 @@ export default function Home() {
       alert('エラーが発生しました: ' + err.message);
     } finally {
       setLoading(false);
+      setLoadingText('レシートを解析中...');
     }
   };
 
-  // バリデーション関数
   const validateForm = (): string | null => {
     if (!result) return 'データが存在しません';
     if (!result.purchased_at) return '購入日時を入力してください';
@@ -153,7 +161,6 @@ export default function Home() {
   const handleSave = async () => {
     if (!result) return;
 
-    // 保存前バリデーション実行
     const errorMsg = validateForm();
     if (errorMsg) {
       setValidationError(errorMsg);
@@ -161,6 +168,7 @@ export default function Home() {
     }
     setValidationError(null);
     setLoading(true);
+    setLoadingText('保存中...');
 
     const payload = {
       merchant_name: result.merchant_name || '名称未設定店舗',
@@ -193,6 +201,7 @@ export default function Home() {
       alert('エラーが発生しました: ' + err.message);
     } finally {
       setLoading(false);
+      setLoadingText('レシートを解析中...');
     }
   };
 
@@ -209,7 +218,6 @@ export default function Home() {
     setResult({ ...result, items: updatedItems });
   };
 
-  // 全明細を一括削除
   const handleClearAllItems = () => {
     if (!result) return;
     if (window.confirm('すべての購入明細を削除しますか？')) {
@@ -308,9 +316,12 @@ export default function Home() {
           <button
             onClick={handleUpload}
             disabled={loading}
-            className="w-full py-2.5 bg-indigo-600 text-white font-medium rounded-xl hover:bg-indigo-700 disabled:bg-slate-300 transition"
+            className="w-full py-2.5 bg-indigo-600 text-white font-medium rounded-xl hover:bg-indigo-700 disabled:bg-slate-300 transition flex items-center justify-center gap-2"
           >
-            {loading ? '解析中...' : 'レシートを解析する'}
+            {loading && (
+              <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full inline-block"></span>
+            )}
+            <span>{loading ? loadingText : 'レシートを解析する'}</span>
           </button>
         )}
       </div>
@@ -341,7 +352,6 @@ export default function Home() {
             />
           </div>
 
-          {/* 税区分 チェック切替領域 */}
           <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-700">計算モード</span>
@@ -430,7 +440,6 @@ export default function Home() {
             />
           </div>
 
-          {/* 明細（税率選択＆一括削除付き） */}
           <div className="pt-2 border-t mt-2">
             <div className="flex justify-between items-center mb-2">
               <label className="block text-xs font-bold text-slate-700">購入品目（明細）</label>
@@ -500,9 +509,12 @@ export default function Home() {
           <button
             onClick={handleSave}
             disabled={loading}
-            className="w-full mt-2 py-2.5 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 disabled:bg-slate-300 transition"
+            className="w-full mt-2 py-2.5 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 disabled:bg-slate-300 transition flex items-center justify-center gap-2"
           >
-            {loading ? '保存中...' : '家計簿に保存する'}
+            {loading && (
+              <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full inline-block"></span>
+            )}
+            <span>{loading ? loadingText : '家計簿に保存する'}</span>
           </button>
         </div>
       )}
