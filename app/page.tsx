@@ -14,6 +14,7 @@ interface ParsedReceipt {
   merchant_name?: string;
   purchased_at?: string;
   total_amount?: number;
+  discount_amount?: number;
   category?: string;
   tax_type?: 'inclusive' | 'exclusive';
   tax_amount?: number;
@@ -43,17 +44,20 @@ export default function Home() {
         calculatedTax += Math.floor(itemTotal * ((item.tax_rate || 10) / 100));
       });
 
+      const discount = result.discount_amount || 0;
+      const subtotalAfterDiscount = Math.max(0, itemsSubtotal - discount);
+
       setResult((prev) =>
         prev
           ? {
               ...prev,
               tax_amount: calculatedTax,
-              total_amount: itemsSubtotal + calculatedTax,
+              total_amount: subtotalAfterDiscount + calculatedTax,
             }
           : null
       );
     }
-  }, [result?.tax_type, JSON.stringify(result?.items)]);
+  }, [result?.tax_type, result?.discount_amount, JSON.stringify(result?.items)]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -100,6 +104,7 @@ export default function Home() {
       merchant_name: result.merchant_name,
       purchased_at: result.purchased_at,
       total_amount: result.total_amount,
+      discount_amount: result.discount_amount || 0,
       category: result.category,
       tax_type: result.tax_type || 'inclusive',
       tax_amount: result.tax_amount || 0,
@@ -296,12 +301,22 @@ export default function Home() {
               </div>
             ) : (
               <div className="text-xs text-indigo-600 bg-indigo-50 p-2 rounded border border-indigo-100 font-medium">
-                💡 各品目の金額（税別）と税率（8%/10%）から、消費税と合計金額を自動計算します。
+                💡 各品目の金額（税別）と税率（8%/10%）、値引き額から、消費税と合計金額を自動計算します。
               </div>
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">値引き額（円）</label>
+              <input
+                type="number"
+                value={result.discount_amount ?? 0}
+                onChange={(e) => setResult({ ...result, discount_amount: Number(e.target.value) })}
+                className="w-full p-2 border rounded-lg text-sm text-red-600 font-medium bg-white"
+              />
+            </div>
+
             <div>
               <label className="block text-xs font-medium text-slate-500 mb-1">消費税額（円）</label>
               <input

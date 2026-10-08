@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
       "merchant_name": "店舗名",
       "purchased_at": "YYYY-MM-DD",
       "total_amount": 1000,
+      "discount_amount": 0, // 値引き・割引の合計額（円）。ない場合は 0
       "category": "カテゴリ名 (例: 食費, 日用品, 娯楽)",
       "tax_type": "inclusive", // "inclusive" (税込) または "exclusive" (税別)
       "items": [
@@ -32,28 +33,50 @@ export async function POST(req: NextRequest) {
           "name": "商品名",
           "price": 500,
           "quantity": 1,
-          "tax_rate": 8 // 食料品・飲料（酒類除く）は 8、それ以外（日用品・外食・酒類など）は 10
+          "tax_rate": 8
         }
       ]
     }
 
     RULES:
     - Set "tax_type" to "exclusive" IF the receipt states "税別", "外税", "+消費税". Otherwise set to "inclusive".
+    - Sum up any discounts or coupon deductions into "discount_amount".
     - For each item in "items", determine "tax_rate":
       * 8 for groceries, food, non-alcoholic drinks (reduced tax rate).
       * 10 for alcohol, daily necessities, household goods, dining out, etc.
 
     IMPORTANT: Respond ONLY with valid JSON. Do NOT wrap it in markdown code blocks or add any extra text or symbols.`;
 
-    const result = await model.generateContent([
-      prompt,
-      {
-        inlineData: {
-          data: buffer.toString('base64'),
-          mimeType: file.type,
-        },
-      },
-    ]);
+    let result;
+    let attempts = 0;
+    const maxAttempts = 3;
+
+    while (attempts < maxAttempts) {
+      try {
+        attempts++;
+        result = await model.generateContent([
+          prompt,
+          {
+            inlineData: {
+              data: buffer.toString('base64'),
+              mimeType: file.type,
+            },
+          },
+        ]);
+        break;
+      } catch (err: any) {
+        if ((err.status === 503 || err.message?.includes('503')) && attempts < maxAttempts) {
+          console.warn(`[WARN] Gemini API 503 Error. Retrying attempt ${attempts}/${maxAttempts}...`);
+          await new Promise((resolve) => setTimeout(resolve, 1500 * attempts));
+        } else {
+          throw err;
+        }
+      }
+    }
+
+    if (!result) {
+      throw new Error('解析結果の取得に失敗しました');
+    }
 
     const responseText = await result.response.text();
     const cleanedText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
