@@ -135,7 +135,7 @@ export default function Dashboard() {
     }
   };
 
-  // --- 編集更新機能 ---
+  // データ更新処理
   const handleUpdate = async () => {
     if (!editingReceipt) return;
     setIsUpdating(true);
