@@ -8,10 +8,10 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 // 削除処理 (DELETE)
 export async function DELETE(
   req: NextRequest,
-  context: { params: Promise<{ id: string }> } // Promise型に変更
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await context.params; // await で展開
+    const { id } = await context.params;
     const { error } = await supabase.from('transactions').delete().eq('id', id);
 
     if (error) throw error;
@@ -28,10 +28,10 @@ export async function DELETE(
 // 編集更新処理 (PUT)
 export async function PUT(
   req: NextRequest,
-  context: { params: Promise<{ id: string }> } // Promise型に変更
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await context.params; // await で展開
+    const { id } = await context.params;
     const body = await req.json();
 
     const { data, error } = await supabase
@@ -40,6 +40,9 @@ export async function PUT(
         merchant_name: body.merchant_name,
         purchased_at: body.purchased_at,
         total_amount: body.total_amount,
+        discount_amount: body.discount_amount ?? 0,
+        tax_type: body.tax_type ?? 'inclusive',
+        tax_amount: body.tax_amount ?? 0,
         category: body.category,
         items: body.items || [],
       })

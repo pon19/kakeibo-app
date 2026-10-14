@@ -36,6 +36,10 @@ export default function Dashboard() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
+  // モーダル編集用 State
+  const [editingReceipt, setEditingReceipt] = useState<Receipt | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
+
   useEffect(() => {
     fetchReceipts();
   }, []);
@@ -54,7 +58,6 @@ export default function Dashboard() {
     }
   };
 
-  // 全カテゴリ一覧（ドロップダウン用）
   const categories = useMemo(() => {
     const set = new Set<string>();
     receipts.forEach((r) => {
@@ -63,7 +66,6 @@ export default function Dashboard() {
     return Array.from(set);
   }, [receipts]);
 
-  // 今月のデータ抽出 & 集計
   const currentMonthStr = useMemo(() => {
     const now = new Date();
     const year = now.getFullYear();
@@ -89,21 +91,17 @@ export default function Dashboard() {
     return Object.entries(map).map(([name, value]) => ({ name, value }));
   }, [currentMonthReceipts]);
 
-  // 検索・絞り込み適用後の取引一覧
   const filteredReceipts = useMemo(() => {
     return receipts.filter((r) => {
-      // 1. キーワード検索（店舗名・品目名）
       const kw = searchKeyword.trim().toLowerCase();
       const matchMerchant = r.merchant_name?.toLowerCase().includes(kw);
       const matchItems = r.items?.some((item) => item.name?.toLowerCase().includes(kw));
       if (kw && !matchMerchant && !matchItems) return false;
 
-      // 2. カテゴリ絞り込み
       if (selectedCategory !== 'ALL' && r.category !== selectedCategory) {
         return false;
       }
 
-      // 3. 日付範囲絞り込み
       const date = r.purchased_at?.slice(0, 10) || '';
       if (startDate && date < startDate) return false;
       if (endDate && date > endDate) return false;
@@ -112,7 +110,6 @@ export default function Dashboard() {
     });
   }, [receipts, searchKeyword, selectedCategory, startDate, endDate]);
 
-  // フィルターのリセット
   const handleResetFilters = () => {
     setSearchKeyword('');
     setSelectedCategory('ALL');
@@ -120,7 +117,79 @@ export default function Dashboard() {
     setEndDate('');
   };
 
-  // CSVダウンロード処理
+  // --- 削除機能 ---
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('この取引データを削除しますか？')) return;
+
+    try {
+      const res = await fetch(`/api/receipts/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        setReceipts((prev) => prev.filter((r) => r.id !== id));
+        if (editingReceipt?.id === id) setEditingReceipt(null);
+      } else {
+        alert('削除に失敗しました: ' + (data.error || '不明なエラー'));
+      }
+    } catch (err: any) {
+      alert('エラーが発生しました: ' + err.message);
+    }
+  };
+
+  // --- 編集更新機能 ---
+  const handleUpdate = async () => {
+    if (!editingReceipt) return;
+    setIsUpdating(true);
+
+    try {
+      const res = await fetch(`/api/receipts/${editingReceipt.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingReceipt),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        const updatedData = Array.isArray(data.data) ? data.data[0] : data.data;
+        setReceipts((prev) =>
+          prev.map((r) => (r.id === editingReceipt.id ? { ...r, ...updatedData } : r))
+        );
+        setEditingReceipt(null);
+      } else {
+        alert('更新に失敗しました: ' + (data.error || '不明なエラー'));
+      }
+    } catch (err: any) {
+      alert('エラーが発生しました: ' + err.message);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  // モーダル内での明細操作
+  const handleItemChangeInEdit = (index: number, field: keyof ReceiptItem, value: any) => {
+    if (!editingReceipt) return;
+    const updatedItems = [...(editingReceipt.items || [])];
+    updatedItems[index] = { ...updatedItems[index], [field]: value };
+    setEditingReceipt({ ...editingReceipt, items: updatedItems });
+  };
+
+  const handleAddItemInEdit = () => {
+    if (!editingReceipt) return;
+    const currentItems = editingReceipt.items || [];
+    setEditingReceipt({
+      ...editingReceipt,
+      items: [...currentItems, { name: '', price: 0, quantity: 1, tax_rate: 8 }],
+    });
+  };
+
+  const handleRemoveItemInEdit = (index: number) => {
+    if (!editingReceipt) return;
+    setEditingReceipt({
+      ...editingReceipt,
+      items: editingReceipt.items.filter((_, i) => i !== index),
+    });
+  };
+
+  // CSVダウンロード
   const handleExportCSV = () => {
     if (filteredReceipts.length === 0) {
       alert('出力するデータがありません');
@@ -172,7 +241,7 @@ export default function Dashboard() {
         </button>
       </div>
 
-      {/* 今月の集計サマリーカード */}
+      {/* 今月の集計カード */}
       <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm mb-6">
         <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
           今月の支出 ({currentMonthStr})
@@ -229,7 +298,7 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* 検索・フィルタリングカード */}
+      {/* 検索・フィルター */}
       <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm mb-6 space-y-3">
         <h2 className="text-xs font-bold text-slate-700 flex justify-between items-center">
           <span>🔍 取引の絞り込み・検索</span>
@@ -304,18 +373,153 @@ export default function Dashboard() {
                   {r.category || '未分類'}
                 </span>
               </div>
+
               <div className="flex justify-between items-center mt-1">
                 <span className="font-bold text-slate-800 text-base">{r.merchant_name}</span>
                 <span className="font-bold text-slate-900 text-lg">¥{(r.total_amount || 0).toLocaleString()}</span>
               </div>
+
               {r.items && r.items.length > 0 && (
                 <div className="mt-2 pt-2 border-t border-slate-50 text-xs text-slate-500">
                   <span>明細 ({r.items.length}件): </span>
                   <span>{r.items.map((i) => i.name).filter(Boolean).join(', ')}</span>
                 </div>
               )}
+
+              {/* アクションボタン */}
+              <div className="mt-3 pt-2 border-t border-slate-100 flex justify-end gap-2">
+                <button
+                  onClick={() => setEditingReceipt(r)}
+                  className="text-xs px-2.5 py-1 bg-indigo-50 text-indigo-600 font-medium rounded-md hover:bg-indigo-100 transition"
+                >
+                  ✏️ 編集
+                </button>
+                <button
+                  onClick={() => handleDelete(r.id)}
+                  className="text-xs px-2.5 py-1 bg-rose-50 text-rose-600 font-medium rounded-md hover:bg-rose-100 transition"
+                >
+                  🗑 削除
+                </button>
+              </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* 編集モーダル */}
+      {editingReceipt && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-2xl p-5 shadow-xl max-h-[90vh] overflow-y-auto flex flex-col gap-4">
+            <div className="flex justify-between items-center border-b pb-2">
+              <h3 className="font-bold text-slate-800 text-base">取引データの修正</h3>
+              <button
+                onClick={() => setEditingReceipt(null)}
+                className="text-slate-400 hover:text-slate-600 font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">店舗名</label>
+              <input
+                type="text"
+                value={editingReceipt.merchant_name || ''}
+                onChange={(e) => setEditingReceipt({ ...editingReceipt, merchant_name: e.target.value })}
+                className="w-full p-2 border rounded-lg text-sm text-slate-800"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">購入日時</label>
+              <input
+                type="date"
+                value={editingReceipt.purchased_at?.slice(0, 10) || ''}
+                onChange={(e) => setEditingReceipt({ ...editingReceipt, purchased_at: e.target.value })}
+                className="w-full p-2 border rounded-lg text-sm text-slate-800"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">カテゴリ</label>
+                <input
+                  type="text"
+                  value={editingReceipt.category || ''}
+                  onChange={(e) => setEditingReceipt({ ...editingReceipt, category: e.target.value })}
+                  className="w-full p-2 border rounded-lg text-sm text-slate-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">合計金額（円）</label>
+                <input
+                  type="number"
+                  value={editingReceipt.total_amount || 0}
+                  onChange={(e) => setEditingReceipt({ ...editingReceipt, total_amount: Number(e.target.value) })}
+                  className="w-full p-2 border rounded-lg text-sm font-bold text-slate-800"
+                />
+              </div>
+            </div>
+
+            {/* 明細の編集 */}
+            <div className="pt-2 border-t">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-xs font-bold text-slate-700">購入品目（明細）</span>
+                <button
+                  type="button"
+                  onClick={handleAddItemInEdit}
+                  className="text-xs bg-indigo-50 text-indigo-600 font-semibold px-2 py-1 rounded hover:bg-indigo-100"
+                >
+                  ＋ 追加
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-2 max-h-40 overflow-y-auto">
+                {editingReceipt.items?.map((item, idx) => (
+                  <div key={idx} className="flex gap-2 items-center bg-slate-50 p-2 rounded-lg border border-slate-100">
+                    <input
+                      type="text"
+                      placeholder="商品名"
+                      value={item.name}
+                      onChange={(e) => handleItemChangeInEdit(idx, 'name', e.target.value)}
+                      className="flex-1 p-1.5 border rounded text-xs text-slate-800 bg-white"
+                    />
+                    <input
+                      type="number"
+                      placeholder="価格"
+                      value={item.price}
+                      onChange={(e) => handleItemChangeInEdit(idx, 'price', Number(e.target.value))}
+                      className="w-16 p-1.5 border rounded text-xs text-slate-800 bg-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveItemInEdit(idx)}
+                      className="text-rose-500 hover:text-rose-700 text-xs px-1"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2 border-t">
+              <button
+                onClick={() => setEditingReceipt(null)}
+                className="flex-1 py-2 bg-slate-100 text-slate-600 rounded-xl font-medium text-sm hover:bg-slate-200 transition"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={handleUpdate}
+                disabled={isUpdating}
+                className="flex-1 py-2 bg-indigo-600 text-white rounded-xl font-medium text-sm hover:bg-indigo-700 disabled:bg-slate-300 transition"
+              >
+                {isUpdating ? '保存中...' : '変更を保存'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </main>
