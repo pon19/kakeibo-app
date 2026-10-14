@@ -24,12 +24,17 @@ interface Receipt {
   created_at: string;
 }
 
-// グラフ用カラーパレット
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#64748b'];
 
 export default function Dashboard() {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // 検索・絞り込みフィルター用 State
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('ALL');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   useEffect(() => {
     fetchReceipts();
@@ -49,7 +54,16 @@ export default function Dashboard() {
     }
   };
 
-  // 当月のデータ抽出 & 集計
+  // 全カテゴリ一覧（ドロップダウン用）
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    receipts.forEach((r) => {
+      if (r.category) set.add(r.category);
+    });
+    return Array.from(set);
+  }, [receipts]);
+
+  // 今月のデータ抽出 & 集計
   const currentMonthStr = useMemo(() => {
     const now = new Date();
     const year = now.getFullYear();
@@ -65,7 +79,6 @@ export default function Dashboard() {
     return currentMonthReceipts.reduce((sum, r) => sum + (r.total_amount || 0), 0);
   }, [currentMonthReceipts]);
 
-  // カテゴリ別集計
   const categoryData = useMemo(() => {
     const map: { [key: string]: number } = {};
     currentMonthReceipts.forEach((r) => {
@@ -76,15 +89,46 @@ export default function Dashboard() {
     return Object.entries(map).map(([name, value]) => ({ name, value }));
   }, [currentMonthReceipts]);
 
+  // 検索・絞り込み適用後の取引一覧
+  const filteredReceipts = useMemo(() => {
+    return receipts.filter((r) => {
+      // 1. キーワード検索（店舗名・品目名）
+      const kw = searchKeyword.trim().toLowerCase();
+      const matchMerchant = r.merchant_name?.toLowerCase().includes(kw);
+      const matchItems = r.items?.some((item) => item.name?.toLowerCase().includes(kw));
+      if (kw && !matchMerchant && !matchItems) return false;
+
+      // 2. カテゴリ絞り込み
+      if (selectedCategory !== 'ALL' && r.category !== selectedCategory) {
+        return false;
+      }
+
+      // 3. 日付範囲絞り込み
+      const date = r.purchased_at?.slice(0, 10) || '';
+      if (startDate && date < startDate) return false;
+      if (endDate && date > endDate) return false;
+
+      return true;
+    });
+  }, [receipts, searchKeyword, selectedCategory, startDate, endDate]);
+
+  // フィルターのリセット
+  const handleResetFilters = () => {
+    setSearchKeyword('');
+    setSelectedCategory('ALL');
+    setStartDate('');
+    setEndDate('');
+  };
+
   // CSVダウンロード処理
   const handleExportCSV = () => {
-    if (receipts.length === 0) {
+    if (filteredReceipts.length === 0) {
       alert('出力するデータがありません');
       return;
     }
 
     const headers = ['ID', '購入日時', '店舗名', 'カテゴリ', '計算モード', '値引き額', '消費税額', '合計金額'];
-    const rows = receipts.map((r) => [
+    const rows = filteredReceipts.map((r) => [
       `"${r.id}"`,
       `"${r.purchased_at?.slice(0, 10) || ''}"`,
       `"${(r.merchant_name || '').replace(/"/g, '""')}"`,
@@ -103,7 +147,7 @@ export default function Dashboard() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `kakeibo_data_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `kakeibo_filtered_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -124,7 +168,7 @@ export default function Dashboard() {
           className="w-full py-2 px-4 bg-emerald-600 text-white rounded-xl font-medium text-sm flex items-center justify-center gap-2 hover:bg-emerald-700 transition shadow-sm"
         >
           <span>📥</span>
-          <span>家計簿データをCSV出力</span>
+          <span>絞り込み結果をCSV出力</span>
         </button>
       </div>
 
@@ -137,7 +181,6 @@ export default function Dashboard() {
           ¥{currentMonthTotal.toLocaleString()}
         </div>
 
-        {/* カテゴリ別割合グラフ */}
         {categoryData.length > 0 ? (
           <div>
             <div className="h-44 w-full">
@@ -152,21 +195,20 @@ export default function Dashboard() {
                     paddingAngle={3}
                     dataKey="value"
                   >
-                    {categoryData.map((entry, index) => (
+                    {categoryData.map((_, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
                   <Tooltip
-                      formatter={(value: any) => [
-                        `¥${(Number(value) || 0).toLocaleString()}`,
-                        '金額',
-                      ]}
-                　/>
+                    formatter={(value: any) => [
+                      `¥${(Number(value) || 0).toLocaleString()}`,
+                      '金額',
+                    ]}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             </div>
 
-            {/* 凡例リスト */}
             <div className="grid grid-cols-2 gap-2 mt-2 pt-3 border-t border-slate-100">
               {categoryData.map((item, idx) => (
                 <div key={idx} className="flex items-center gap-2 text-xs">
@@ -187,18 +229,74 @@ export default function Dashboard() {
         )}
       </div>
 
+      {/* 検索・フィルタリングカード */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm mb-6 space-y-3">
+        <h2 className="text-xs font-bold text-slate-700 flex justify-between items-center">
+          <span>🔍 取引の絞り込み・検索</span>
+          {(searchKeyword || selectedCategory !== 'ALL' || startDate || endDate) && (
+            <button
+              onClick={handleResetFilters}
+              className="text-xs text-indigo-600 font-normal underline hover:text-indigo-800"
+            >
+              条件リセット
+            </button>
+          )}
+        </h2>
+
+        <div>
+          <input
+            type="text"
+            placeholder="店舗名・商品名で検索..."
+            value={searchKeyword}
+            onChange={(e) => setSearchKeyword(e.target.value)}
+            className="w-full p-2 border rounded-lg text-xs text-slate-800 focus:outline-indigo-500"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="block text-[10px] text-slate-400 mb-0.5">カテゴリ</label>
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="w-full p-2 border rounded-lg text-xs text-slate-800 bg-white"
+            >
+              <option value="ALL">すべて</option>
+              {categories.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-[10px] text-slate-400 mb-0.5">開始日</label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="w-full p-1.5 border rounded-lg text-xs text-slate-800 bg-white"
+            />
+          </div>
+        </div>
+      </div>
+
       {/* 取引履歴一覧 */}
-      <h2 className="text-sm font-bold text-slate-700 mb-3">最近の取引履歴</h2>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm font-bold text-slate-700">取引履歴</h2>
+        <span className="text-xs text-slate-400">{filteredReceipts.length} 件</span>
+      </div>
 
       {loading ? (
         <div className="text-center py-10 text-slate-400 text-sm">データを読み込み中...</div>
-      ) : receipts.length === 0 ? (
+      ) : filteredReceipts.length === 0 ? (
         <div className="text-center py-10 text-slate-400 text-sm bg-white rounded-2xl border border-slate-100">
-          保存された取引データはありません
+          条件に該当する取引データはありません
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          {receipts.map((r) => (
+          {filteredReceipts.map((r) => (
             <div key={r.id} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
               <div className="flex justify-between items-start mb-1">
                 <span className="text-xs text-slate-400">{r.purchased_at?.slice(0, 10)}</span>
