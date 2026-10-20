@@ -39,6 +39,7 @@ export async function GET() {
 }
 
 // POST: 取引データ新規保存（グループ所属時は household_id も自動設定）
+// app/api/receipts/route.ts 内の POST 部分
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createClient();
@@ -48,7 +49,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: '認証エラー' }, { status: 401 });
     }
 
-    // ユーザーの所属グループを取得
     const { data: member } = await supabase
       .from('household_members')
       .select('household_id')
@@ -61,7 +61,8 @@ export async function POST(req: NextRequest) {
       .from('transactions')
       .insert({
         user_id: user.id,
-        household_id: member?.household_id || null, // 所属があれば自動付与
+        household_id: member?.household_id || null,
+        type: body.type || 'expense', // ← type (expense / income) を追加
         merchant_name: body.merchant_name,
         purchased_at: body.purchased_at,
         total_amount: body.total_amount,

@@ -8,7 +8,7 @@ interface ManualExpenseModalProps {
   onSuccess: () => void;
 }
 
-const CATEGORIES = [
+const EXPENSE_CATEGORIES = [
   '食費',
   '日用品',
   '交通費',
@@ -19,11 +19,21 @@ const CATEGORIES = [
   'その他',
 ];
 
+const INCOME_CATEGORIES = [
+  '給与',
+  '賞与',
+  '副収入',
+  '臨時収入',
+  'お小遣い',
+  'その他収入',
+];
+
 export default function ManualExpenseModal({
   isOpen,
   onClose,
   onSuccess,
 }: ManualExpenseModalProps) {
+  const [type, setType] = useState<'expense' | 'income'>('expense');
   const [merchantName, setMerchantName] = useState('');
   const [purchasedAt, setPurchasedAt] = useState(
     new Date().toISOString().split('T')[0]
@@ -35,6 +45,12 @@ export default function ManualExpenseModal({
   const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) return null;
+
+  // 支出/収入切り替え時にデフォルトカテゴリを変更
+  const handleTypeChange = (newType: 'expense' | 'income') => {
+    setType(newType);
+    setCategory(newType === 'expense' ? '食費' : '給与');
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,16 +64,16 @@ export default function ManualExpenseModal({
       return;
     }
 
-    // 内税計算（概算）
     const rate = taxRate === '10' ? 0.1 : 0.08;
-    const taxAmount = Math.round(amount - amount / (1 + rate));
+    const taxAmount = type === 'expense' ? Math.round(amount - amount / (1 + rate)) : 0;
 
     try {
       const res = await fetch('/api/receipts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          merchant_name: merchantName || '手入力の支出',
+          type, // expense or income
+          merchant_name: merchantName || (type === 'expense' ? '手入力の支出' : '手入力の収入'),
           purchased_at: purchasedAt,
           total_amount: amount,
           discount_amount: 0,
@@ -66,7 +82,7 @@ export default function ManualExpenseModal({
           category,
           items: [
             {
-              name: merchantName || '手入力',
+              name: merchantName || (type === 'expense' ? '手入力支出' : '手入力収入'),
               price: amount,
               quantity: 1,
             },
@@ -76,7 +92,6 @@ export default function ManualExpenseModal({
 
       const data = await res.json();
       if (data.success) {
-        // フォームリセット
         setMerchantName('');
         setTotalAmount('');
         onSuccess();
@@ -91,16 +106,44 @@ export default function ManualExpenseModal({
     }
   };
 
+  const currentCategories = type === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
+
   return (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-xl border border-slate-100 animate-in fade-in zoom-in-95 duration-150">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-slate-800">手入力で支出を追加</h2>
+          <h2 className="text-lg font-bold text-slate-800">手入力でデータ追加</h2>
           <button
             onClick={onClose}
             className="text-slate-400 hover:text-slate-600 text-sm p-1"
           >
             ✕
+          </button>
+        </div>
+
+        {/* 支出 / 収入 の切り替えタブ */}
+        <div className="flex bg-slate-100 p-1 rounded-xl mb-4">
+          <button
+            type="button"
+            onClick={() => handleTypeChange('expense')}
+            className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${
+              type === 'expense'
+                ? 'bg-rose-500 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            💸 支出
+          </button>
+          <button
+            type="button"
+            onClick={() => handleTypeChange('income')}
+            className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${
+              type === 'income'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            💰 収入
           </button>
         </div>
 
@@ -113,11 +156,11 @@ export default function ManualExpenseModal({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">
-              用途・店舗名
+              {type === 'expense' ? '用途・店舗名' : '収入元・名称'}
             </label>
             <input
               type="text"
-              placeholder="例: 自動販売機、電車代"
+              placeholder={type === 'expense' ? '例: 自動販売機、電車代' : '例: ○○株式会社、給与'}
               value={merchantName}
               onChange={(e) => setMerchantName(e.target.value)}
               className="w-full p-2.5 border rounded-xl text-sm focus:outline-indigo-500"
@@ -139,7 +182,7 @@ export default function ManualExpenseModal({
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">
-                金額 (税込)
+                金額 (円)
               </label>
               <input
                 type="number"
@@ -153,7 +196,7 @@ export default function ManualExpenseModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className={type === 'expense' ? 'grid grid-cols-2 gap-3' : 'w-full'}>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">
                 カテゴリ
@@ -163,26 +206,29 @@ export default function ManualExpenseModal({
                 onChange={(e) => setCategory(e.target.value)}
                 className="w-full p-2.5 border rounded-xl text-sm focus:outline-indigo-500"
               >
-                {CATEGORIES.map((cat) => (
+                {currentCategories.map((cat) => (
                   <option key={cat} value={cat}>
                     {cat}
                   </option>
                 ))}
               </select>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">
-                適用税率
-              </label>
-              <select
-                value={taxRate}
-                onChange={(e) => setTaxRate(e.target.value as '10' | '8')}
-                className="w-full p-2.5 border rounded-xl text-sm focus:outline-indigo-500"
-              >
-                <option value="10">標準税率 (10%)</option>
-                <option value="8">軽減税率 (8%)</option>
-              </select>
-            </div>
+
+            {type === 'expense' && (
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">
+                  適用税率
+                </label>
+                <select
+                  value={taxRate}
+                  onChange={(e) => setTaxRate(e.target.value as '10' | '8')}
+                  className="w-full p-2.5 border rounded-xl text-sm focus:outline-indigo-500"
+                >
+                  <option value="10">標準税率 (10%)</option>
+                  <option value="8">軽減税率 (8%)</option>
+                </select>
+              </div>
+            )}
           </div>
 
           <div className="flex gap-2 pt-2">
@@ -196,7 +242,11 @@ export default function ManualExpenseModal({
             <button
               type="submit"
               disabled={loading}
-              className="w-1/2 py-2.5 bg-indigo-600 text-white font-medium text-sm rounded-xl hover:bg-indigo-700 disabled:bg-slate-300 transition flex items-center justify-center gap-1"
+              className={`w-1/2 py-2.5 text-white font-medium text-sm rounded-xl transition flex items-center justify-center gap-1 ${
+                type === 'expense'
+                  ? 'bg-rose-500 hover:bg-rose-600'
+                  : 'bg-emerald-600 hover:bg-emerald-700'
+              } disabled:bg-slate-300`}
             >
               {loading ? '保存中...' : '追加する'}
             </button>
