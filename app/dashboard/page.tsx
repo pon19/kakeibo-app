@@ -68,7 +68,7 @@ export default function Dashboard() {
       }
     } catch (err) {
       console.error('データの取得に失敗しました', err);
-    } fontally {
+    } finally {
       setLoading(false);
     }
   };
