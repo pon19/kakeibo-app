@@ -1,23 +1,31 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/supabase/server';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
-// 削除処理 (DELETE)
+// DELETE: 取引データの削除
 export async function DELETE(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await context.params;
-    const { error } = await supabase.from('transactions').delete().eq('id', id);
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-    if (error) {
-      console.error('[SUPABASE DELETE ERROR]', error);
-      throw error;
+    if (authError || !user) {
+      return NextResponse.json(
+        { success: false, error: '認証エラー: ログインが必要です' },
+        { status: 401 }
+      );
     }
+
+    const { id } = await context.params;
+
+    const { error } = await supabase
+      .from('transactions')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', user.id);
+
+    if (error) throw error;
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
@@ -29,12 +37,22 @@ export async function DELETE(
   }
 }
 
-// 編集更新処理 (PUT)
+// PUT: 取引データの編集更新
 export async function PUT(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json(
+        { success: false, error: '認証エラー: ログインが必要です' },
+        { status: 401 }
+      );
+    }
+
     const { id } = await context.params;
     const body = await req.json();
 
@@ -53,15 +71,10 @@ export async function PUT(
       .from('transactions')
       .update(updateData)
       .eq('id', id)
+      .eq('user_id', user.id)
       .select();
 
-    if (error) {
-      console.error('[SUPABASE PUT ERROR]', error);
-      return NextResponse.json(
-        { success: false, error: `Database error: ${error.message}` },
-        { status: 500 }
-      );
-    }
+    if (error) throw error;
 
     return NextResponse.json({ success: true, data });
   } catch (error: any) {
