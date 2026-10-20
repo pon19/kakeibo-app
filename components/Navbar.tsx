@@ -1,13 +1,32 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 
 export default function Navbar() {
   const pathname = usePathname();
+  const router = useRouter();
 
   // ログイン画面ではナビゲーションを表示しない
   if (pathname === '/login') return null;
+
+  const handleLogout = async () => {
+    if (!window.confirm('ログアウトしますか？')) return;
+
+    try {
+      const res = await fetch('/api/auth/logout', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        router.push('/login');
+        router.refresh();
+      } else {
+        alert('ログアウトに失敗しました');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('エラーが発生しました');
+    }
+  };
 
   const navItems = [
     {
@@ -57,6 +76,17 @@ export default function Navbar() {
             </Link>
           );
         })}
+
+        {/* ログアウトボタン */}
+        <button
+          onClick={handleLogout}
+          className="flex flex-col items-center justify-center w-full h-full text-xs font-medium text-slate-400 hover:text-rose-600 transition-colors"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
+          <span className="mt-1 text-[11px]">ログアウト</span>
+        </button>
       </div>
     </nav>
   );
