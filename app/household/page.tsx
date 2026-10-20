@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
 
 interface Household {
   id: string;
@@ -82,13 +81,14 @@ export default function HouseholdPage() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-50 p-4 max-w-md mx-auto pb-20">
-      <div className="flex items-center justify-between my-4">
-        <h1 className="text-2xl font-bold text-slate-800">家族共有設定</h1>
-        <Link className="text-xs bg-slate-200 text-slate-700 font-medium px-3 py-1.5 rounded-lg hover:bg-slate-300 transition" href="/dashboard">
-          ← ダッシュボードへ
-        </Link>
-      </div>
+    <main className="min-h-screen bg-slate-50 p-4 max-w-md mx-auto pb-24">
+      {/* 画面ヘッダー */}
+      <header className="my-4 text-center">
+        <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">
+          家族共有
+        </h1>
+        <p className="text-xs text-slate-400 mt-1">家計簿データの共有・招待管理</p>
+      </header>
 
       {error && (
         <div className="mb-4 p-3 bg-rose-100 text-rose-800 text-xs rounded-xl border border-rose-200">
@@ -118,7 +118,7 @@ export default function HouseholdPage() {
                 type="text"
                 readOnly
                 value={household.invite_code}
-                className="w-full p-2.5 bg-slate-100 border rounded-xl text-center font-mono font-bold text-slate-800 text-base"
+                className="w-full p-2.5 bg-slate-100 border border-slate-200 text-slate-800 rounded-xl text-center font-mono font-bold text-base"
               />
               <button
                 onClick={() => {
@@ -149,7 +149,7 @@ export default function HouseholdPage() {
                   placeholder="例: 我が家の家計簿"
                   value={groupName}
                   onChange={(e) => setGroupName(e.target.value)}
-                  className="w-full p-2.5 border rounded-xl text-sm focus:outline-indigo-500"
+                  className="w-full p-2.5 border border-slate-200 bg-white text-slate-800 rounded-xl text-sm focus:outline-indigo-500"
                 />
               </div>
               <button
@@ -173,7 +173,7 @@ export default function HouseholdPage() {
                   placeholder="8桁の招待コードを入力"
                   value={inviteCodeInput}
                   onChange={(e) => setInviteCodeInput(e.target.value)}
-                  className="w-full p-2.5 border rounded-xl text-sm uppercase font-mono focus:outline-indigo-500"
+                  className="w-full p-2.5 border border-slate-200 bg-white text-slate-800 rounded-xl text-sm uppercase font-mono focus:outline-indigo-500"
                 />
               </div>
               <button
