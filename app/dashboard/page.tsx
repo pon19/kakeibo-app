@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import Link from 'next/link';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 
 interface ReceiptItem {
@@ -194,13 +193,14 @@ export default function Dashboard() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-50 p-4 max-w-md mx-auto pb-20">
-      <div className="flex items-center justify-between my-4">
-        <h1 className="text-2xl font-bold text-slate-800">ダッシュボード</h1>
-        <Link className="text-xs bg-slate-200 text-slate-700 font-medium px-3 py-1.5 rounded-lg hover:bg-slate-300 transition" href="/">
-          ← レシート撮影へ
-        </Link>
-      </div>
+    <main className="min-h-screen bg-slate-50 p-4 max-w-md mx-auto pb-24">
+      {/* 画面ヘッダー */}
+      <header className="my-4 text-center">
+        <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">
+          集計・分析
+        </h1>
+        <p className="text-xs text-slate-400 mt-1">支出・収入・予算の進捗状況</p>
+      </header>
 
       {/* 今月の収支＆予算状況カード */}
       <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm mb-6 space-y-4">
@@ -364,7 +364,7 @@ export default function Dashboard() {
                   placeholder="例: 150000"
                   value={inputBudget}
                   onChange={(e) => setInputBudget(e.target.value)}
-                  className="w-full p-2.5 border rounded-xl text-base font-bold text-slate-800 focus:outline-indigo-500"
+                  className="w-full p-2.5 border border-slate-200 bg-white text-slate-800 rounded-xl text-base font-bold focus:outline-indigo-500"
                 />
               </div>
 
