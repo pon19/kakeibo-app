@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { compressImage } from '@/lib/imageCompressor';
-import ManualExpenseModal from '@/components/ManualExpenseModal'; // ← インポート追加
+import ManualExpenseModal from '@/components/ManualExpenseModal';
 
 interface ReceiptItem {
   name: string;
@@ -31,8 +31,6 @@ export default function Home() {
   const [result, setResult] = useState<ParsedReceipt | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
-
-  // 手入力モーダル状態
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -237,48 +235,43 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-50 p-4 max-w-md mx-auto pb-20">
-      <h1 className="text-2xl font-bold text-center text-slate-800 my-4">
-        レシート家計簿
-      </h1>
-
-      <div className="flex gap-2 mb-6">
-        <Link className="flex-1 py-2 px-3 bg-indigo-600 text-white rounded-lg font-medium text-center hover:bg-indigo-700 transition shadow-sm text-sm" href="/dashboard">
-          📊 ダッシュボードを見る
-        </Link>
-        <Link className="py-2 px-3 bg-slate-200 text-slate-700 rounded-lg font-medium text-center hover:bg-slate-300 transition shadow-sm text-sm" href="/household">
-          👨‍👩‍👧 家族共有
-        </Link>
-      </div>
+    <main className="min-h-screen bg-slate-50 p-4 max-w-md mx-auto pb-24">
+      {/* 画面ヘッダー */}
+      <header className="my-4 text-center">
+        <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">
+          レシート家計簿
+        </h1>
+        <p className="text-xs text-slate-400 mt-1">撮影または手入力で取引を追加</p>
+      </header>
 
       {saveSuccess && (
-        <div className="mb-4 p-3 bg-emerald-100 text-emerald-800 rounded-lg text-sm text-center font-medium border border-emerald-200 flex flex-col gap-2">
+        <div className="mb-4 p-3.5 bg-emerald-50 text-emerald-800 rounded-xl text-xs text-center font-medium border border-emerald-200/80 flex flex-col gap-1.5 shadow-sm">
           <span>✅ 取引データを保存しました！</span>
-          <Link className="underline text-emerald-900 font-bold" href="/dashboard">
-            ダッシュボードで確認する →
+          <Link className="underline text-emerald-900 font-bold hover:text-emerald-950" href="/dashboard">
+            集計・分析画面で確認する →
           </Link>
         </div>
       )}
 
       {validationError && (
-        <div className="mb-4 p-3 bg-rose-100 text-rose-800 rounded-lg text-sm font-medium border border-rose-200 flex items-center justify-between">
+        <div className="mb-4 p-3 bg-rose-50 text-rose-800 rounded-xl text-xs font-medium border border-rose-200 flex items-center justify-between shadow-sm">
           <span>⚠️ {validationError}</span>
-          <button onClick={() => setValidationError(null)} className="text-rose-500 font-bold text-xs">✕</button>
+          <button onClick={() => setValidationError(null)} className="text-rose-500 font-bold text-xs p-1">✕</button>
         </div>
       )}
 
-      {/* 手入力カード */}
+      {/* 手入力アクションカード */}
       <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm mb-4 flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-bold text-slate-800">レシートがない支出</h3>
-          <p className="text-xs text-slate-400">自動販売機や交通費などを手入力</p>
+          <h3 className="text-sm font-bold text-slate-800">直接入力する</h3>
+          <p className="text-[11px] text-slate-400">自動販売機や交通費、収入を記録</p>
         </div>
         <button
           onClick={() => {
             setSaveSuccess(false);
             setIsManualModalOpen(true);
           }}
-          className="py-2 px-3.5 bg-indigo-50 text-indigo-600 text-xs font-bold rounded-xl hover:bg-indigo-100 transition border border-indigo-100"
+          className="py-2 px-3.5 bg-indigo-50 text-indigo-600 text-xs font-bold rounded-xl hover:bg-indigo-100 transition border border-indigo-100/50 shadow-sm"
         >
           ＋ 手入力で追加
         </button>
@@ -286,7 +279,7 @@ export default function Home() {
 
       {/* レシート撮影・選択カード */}
       <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mb-6">
-        <h2 className="text-base font-semibold text-slate-700 mb-3">
+        <h2 className="text-sm font-bold text-slate-700 mb-3">
           レシートを撮影・選択
         </h2>
 
@@ -310,17 +303,17 @@ export default function Home() {
           <button
             type="button"
             onClick={() => cameraInputRef.current?.click()}
-            className="py-3 px-4 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-xl font-medium text-sm flex flex-col items-center justify-center gap-1 hover:bg-indigo-100 transition"
+            className="py-3.5 px-4 bg-indigo-50/70 border border-indigo-100 text-indigo-700 rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1.5 hover:bg-indigo-100/80 transition"
           >
-            <span className="text-xl">📷</span>
+            <span className="text-2xl">📷</span>
             <span>カメラで撮影</span>
           </button>
           <button
             type="button"
             onClick={() => libraryInputRef.current?.click()}
-            className="py-3 px-4 bg-slate-50 border border-slate-200 text-slate-700 rounded-xl font-medium text-sm flex flex-col items-center justify-center gap-1 hover:bg-slate-100 transition"
+            className="py-3.5 px-4 bg-slate-50 border border-slate-200/80 text-slate-700 rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1.5 hover:bg-slate-100 transition"
           >
-            <span className="text-xl">🖼</span>
+            <span className="text-2xl">🖼</span>
             <span>アルバムから選択</span>
           </button>
         </div>
@@ -330,7 +323,7 @@ export default function Home() {
             <img
               src={previewUrl}
               alt="選択したレシート"
-              className="max-h-48 rounded-lg object-contain border border-slate-200"
+              className="max-h-48 rounded-xl object-contain border border-slate-200 shadow-sm"
             />
           </div>
         )}
@@ -339,7 +332,7 @@ export default function Home() {
           <button
             onClick={handleUpload}
             disabled={loading}
-            className="w-full py-2.5 bg-indigo-600 text-white font-medium rounded-xl hover:bg-indigo-700 disabled:bg-slate-300 transition flex items-center justify-center gap-2"
+            className="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 disabled:bg-slate-300 transition text-xs flex items-center justify-center gap-2 shadow-sm"
           >
             {loading && (
               <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full inline-block"></span>
@@ -351,7 +344,7 @@ export default function Home() {
 
       {result && (
         <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col gap-4">
-          <h2 className="text-base font-semibold text-slate-700 border-b pb-2">
+          <h2 className="text-sm font-bold text-slate-800 border-b pb-2">
             解析結果の確認・修正
           </h2>
 
@@ -361,7 +354,7 @@ export default function Home() {
               type="text"
               value={result.merchant_name || ''}
               onChange={(e) => setResult({ ...result, merchant_name: e.target.value })}
-              className="w-full p-2 border rounded-lg text-slate-800 text-sm focus:outline-indigo-500"
+              className="w-full p-2.5 border border-slate-200 bg-white text-slate-800 rounded-xl text-xs focus:outline-indigo-500"
             />
           </div>
 
@@ -371,15 +364,15 @@ export default function Home() {
               type="date"
               value={result.purchased_at?.slice(0, 10) || ''}
               onChange={(e) => setResult({ ...result, purchased_at: e.target.value })}
-              className="w-full p-2 border rounded-lg text-slate-800 text-sm focus:outline-indigo-500"
+              className="w-full p-2.5 border border-slate-200 bg-white text-slate-800 rounded-xl text-xs focus:outline-indigo-500"
             />
           </div>
 
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-3">
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-700">計算モード</span>
-              <div className="flex items-center gap-3 text-xs font-medium">
-                <label className="flex items-center gap-1 cursor-pointer bg-white px-2 py-1 rounded border border-slate-200 shadow-sm">
+              <div className="flex items-center gap-2 text-xs font-medium">
+                <label className="flex items-center gap-1 cursor-pointer bg-white px-2 py-1 rounded-lg border border-slate-200 shadow-sm">
                   <input
                     type="radio"
                     name="tax_type"
@@ -388,9 +381,9 @@ export default function Home() {
                     onChange={() => setResult({ ...result, tax_type: 'inclusive' })}
                     className="accent-indigo-600"
                   />
-                  <span className="text-slate-800 font-semibold">内税（税込）</span>
+                  <span className="text-slate-800 font-semibold text-[11px]">内税（税込）</span>
                 </label>
-                <label className="flex items-center gap-1 cursor-pointer bg-white px-2 py-1 rounded border border-slate-200 shadow-sm">
+                <label className="flex items-center gap-1 cursor-pointer bg-white px-2 py-1 rounded-lg border border-slate-200 shadow-sm">
                   <input
                     type="radio"
                     name="tax_type"
@@ -399,17 +392,17 @@ export default function Home() {
                     onChange={() => setResult({ ...result, tax_type: 'exclusive' })}
                     className="accent-indigo-600"
                   />
-                  <span className="text-slate-800 font-semibold">外税（税別）</span>
+                  <span className="text-slate-800 font-semibold text-[11px]">外税（税別）</span>
                 </label>
               </div>
             </div>
 
             {result.tax_type === 'inclusive' ? (
-              <div className="text-xs text-slate-500 bg-white p-2 rounded border border-slate-100">
+              <div className="text-[11px] text-slate-500 bg-white p-2 rounded-lg border border-slate-100">
                 📝 表示されている合計金額がそのまま支払額（税込）になります。
               </div>
             ) : (
-              <div className="text-xs text-indigo-600 bg-indigo-50 p-2 rounded border border-indigo-100 font-medium">
+              <div className="text-[11px] text-indigo-600 bg-indigo-50/60 p-2 rounded-lg border border-indigo-100 font-medium">
                 💡 各品目の金額（税別）と税率（8%/10%）、値引き額から、消費税と合計金額を自動計算します。
               </div>
             )}
@@ -417,36 +410,36 @@ export default function Home() {
 
           <div className="grid grid-cols-3 gap-2">
             <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">値引き額（円）</label>
+              <label className="block text-[11px] font-medium text-slate-500 mb-1">値引き額</label>
               <input
                 type="number"
                 value={result.discount_amount ?? 0}
                 onChange={(e) => setResult({ ...result, discount_amount: Number(e.target.value) })}
-                className="w-full p-2 border rounded-lg text-sm text-red-600 font-medium bg-white"
+                className="w-full p-2 border border-slate-200 rounded-lg text-xs text-rose-600 font-bold bg-white"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">消費税額（円）</label>
+              <label className="block text-[11px] font-medium text-slate-500 mb-1">消費税額</label>
               <input
                 type="number"
                 value={result.tax_amount ?? 0}
                 readOnly={result.tax_type === 'exclusive'}
                 onChange={(e) => setResult({ ...result, tax_amount: Number(e.target.value) })}
-                className={`w-full p-2 border rounded-lg text-sm ${
+                className={`w-full p-2 border border-slate-200 rounded-lg text-xs ${
                   result.tax_type === 'exclusive' ? 'bg-slate-100 text-slate-600' : 'bg-white text-slate-800'
                 }`}
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">合計金額（円） <span className="text-rose-500">*</span></label>
+              <label className="block text-[11px] font-medium text-slate-500 mb-1">合計金額 <span className="text-rose-500">*</span></label>
               <input
                 type="number"
                 value={result.total_amount || ''}
                 readOnly={result.tax_type === 'exclusive'}
                 onChange={(e) => setResult({ ...result, total_amount: Number(e.target.value) })}
-                className={`w-full p-2 border rounded-lg text-sm font-bold ${
+                className={`w-full p-2 border border-slate-200 rounded-lg text-xs font-extrabold ${
                   result.tax_type === 'exclusive' ? 'bg-slate-100 text-slate-600' : 'bg-white text-slate-800'
                 }`}
               />
@@ -459,7 +452,7 @@ export default function Home() {
               type="text"
               value={result.category || ''}
               onChange={(e) => setResult({ ...result, category: e.target.value })}
-              className="w-full p-2 border rounded-lg text-slate-800 text-sm focus:outline-indigo-500"
+              className="w-full p-2.5 border border-slate-200 bg-white text-slate-800 rounded-xl text-xs focus:outline-indigo-500"
             />
           </div>
 
@@ -471,7 +464,7 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={handleClearAllItems}
-                    className="text-xs bg-rose-50 text-rose-600 font-semibold px-2 py-1 rounded hover:bg-rose-100 transition"
+                    className="text-[11px] bg-rose-50 text-rose-600 font-semibold px-2 py-1 rounded-lg hover:bg-rose-100 transition"
                   >
                     🗑 一括クリア
                   </button>
@@ -479,7 +472,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={handleAddItem}
-                  className="text-xs bg-indigo-50 text-indigo-600 font-semibold px-2 py-1 rounded hover:bg-indigo-100 transition"
+                  className="text-[11px] bg-indigo-50 text-indigo-600 font-semibold px-2 py-1 rounded-lg hover:bg-indigo-100 transition"
                 >
                   ＋ 品目追加
                 </button>
@@ -489,25 +482,25 @@ export default function Home() {
             {result.items && result.items.length > 0 ? (
               <div className="flex flex-col gap-2">
                 {result.items.map((item, idx) => (
-                  <div key={idx} className="flex gap-2 items-center bg-slate-50 p-2 rounded-lg border border-slate-100">
+                  <div key={idx} className="flex gap-2 items-center bg-slate-50 p-2 rounded-xl border border-slate-100">
                     <input
                       type="text"
                       placeholder="商品名"
                       value={item.name}
                       onChange={(e) => handleItemChange(idx, 'name', e.target.value)}
-                      className="flex-1 p-1.5 border rounded text-xs text-slate-800 bg-white"
+                      className="flex-1 p-1.5 border border-slate-200 rounded-lg text-xs text-slate-800 bg-white"
                     />
                     <input
                       type="number"
                       placeholder="価格"
                       value={item.price}
                       onChange={(e) => handleItemChange(idx, 'price', Number(e.target.value))}
-                      className="w-16 p-1.5 border rounded text-xs text-slate-800 bg-white"
+                      className="w-16 p-1.5 border border-slate-200 rounded-lg text-xs text-slate-800 bg-white"
                     />
                     <select
                       value={item.tax_rate || 8}
                       onChange={(e) => handleItemChange(idx, 'tax_rate', Number(e.target.value))}
-                      className="p-1.5 border rounded text-xs text-slate-800 bg-white font-medium"
+                      className="p-1.5 border border-slate-200 rounded-lg text-xs text-slate-800 bg-white font-medium"
                     >
                       <option value={8}>8%</option>
                       <option value={10}>10%</option>
@@ -515,7 +508,7 @@ export default function Home() {
                     <button
                       type="button"
                       onClick={() => handleRemoveItem(idx)}
-                      className="text-red-500 hover:text-red-700 text-xs px-1"
+                      className="text-rose-500 hover:text-rose-700 text-xs p-1 font-bold"
                     >
                       ✕
                     </button>
@@ -523,7 +516,7 @@ export default function Home() {
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-slate-400 py-2 text-center border border-dashed rounded-lg bg-slate-50">
+              <p className="text-xs text-slate-400 py-3 text-center border border-dashed rounded-xl bg-slate-50">
                 明細データはありません
               </p>
             )}
@@ -532,7 +525,7 @@ export default function Home() {
           <button
             onClick={handleSave}
             disabled={loading}
-            className="w-full mt-2 py-2.5 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 disabled:bg-slate-300 transition flex items-center justify-center gap-2"
+            className="w-full mt-2 py-3 bg-emerald-600 text-white font-bold text-xs rounded-xl hover:bg-emerald-700 disabled:bg-slate-300 transition flex items-center justify-center gap-2 shadow-sm"
           >
             {loading && (
               <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full inline-block"></span>
@@ -542,7 +535,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* 手入力モーダル */}
       <ManualExpenseModal
         isOpen={isManualModalOpen}
         onClose={() => setIsManualModalOpen(false)}
