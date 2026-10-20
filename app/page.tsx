@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import { compressImage } from '@/lib/imageCompressor'; // ← 圧縮ユーティリティをインポート
+import { compressImage } from '@/lib/imageCompressor';
+import ManualExpenseModal from '@/components/ManualExpenseModal'; // ← インポート追加
 
 interface ReceiptItem {
   name: string;
@@ -30,6 +31,9 @@ export default function Home() {
   const [result, setResult] = useState<ParsedReceipt | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+
+  // 手入力モーダル状態
+  const [isManualModalOpen, setIsManualModalOpen] = useState(false);
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const libraryInputRef = useRef<HTMLInputElement>(null);
@@ -102,11 +106,9 @@ export default function Home() {
     setValidationError(null);
 
     try {
-      // 1. 画像圧縮処理
       setLoadingText('画像を最適化中...');
       const compressedFile = await compressImage(file);
 
-      // 2. 解析リクエスト送信
       setLoadingText('AIでレシートを解析中...');
       const formData = new FormData();
       formData.append('file', compressedFile);
@@ -244,6 +246,9 @@ export default function Home() {
         <Link className="flex-1 py-2 px-3 bg-indigo-600 text-white rounded-lg font-medium text-center hover:bg-indigo-700 transition shadow-sm text-sm" href="/dashboard">
           📊 ダッシュボードを見る
         </Link>
+        <Link className="py-2 px-3 bg-slate-200 text-slate-700 rounded-lg font-medium text-center hover:bg-slate-300 transition shadow-sm text-sm" href="/household">
+          👨‍👩‍👧 家族共有
+        </Link>
       </div>
 
       {saveSuccess && (
@@ -262,6 +267,24 @@ export default function Home() {
         </div>
       )}
 
+      {/* 手入力カード */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm mb-4 flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-bold text-slate-800">レシートがない支出</h3>
+          <p className="text-xs text-slate-400">自動販売機や交通費などを手入力</p>
+        </div>
+        <button
+          onClick={() => {
+            setSaveSuccess(false);
+            setIsManualModalOpen(true);
+          }}
+          className="py-2 px-3.5 bg-indigo-50 text-indigo-600 text-xs font-bold rounded-xl hover:bg-indigo-100 transition border border-indigo-100"
+        >
+          ＋ 手入力で追加
+        </button>
+      </div>
+
+      {/* レシート撮影・選択カード */}
       <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mb-6">
         <h2 className="text-base font-semibold text-slate-700 mb-3">
           レシートを撮影・選択
@@ -518,6 +541,13 @@ export default function Home() {
           </button>
         </div>
       )}
+
+      {/* 手入力モーダル */}
+      <ManualExpenseModal
+        isOpen={isManualModalOpen}
+        onClose={() => setIsManualModalOpen(false)}
+        onSuccess={() => setSaveSuccess(true)}
+      />
     </main>
   );
 }
