@@ -60,15 +60,22 @@ export async function POST(req: NextRequest) {
           {
             inlineData: {
               data: buffer.toString('base64'),
-              mimeType: file.type,
+              mimeType: file.type || 'image/jpeg',
             },
           },
         ]);
         break;
       } catch (err: any) {
-        if ((err.status === 503 || err.message?.includes('503')) && attempts < maxAttempts) {
-          console.warn(`[WARN] Gemini API 503 Error. Retrying attempt ${attempts}/${maxAttempts}...`);
-          await new Promise((resolve) => setTimeout(resolve, 1500 * attempts));
+        const isRateLimitOrServerBusy = 
+          err.status === 429 || 
+          err.status === 503 || 
+          err.message?.includes('429') || 
+          err.message?.includes('503');
+
+        if (isRateLimitOrServerBusy && attempts < maxAttempts) {
+          const delay = 2000 * Math.pow(2, attempts - 1); // 2秒 -> 4秒 の指数バックオフ
+          console.warn(`[WARN] Gemini API ${err.status || 'RateLimit/Busy'} Error. Retrying in ${delay / 1000}s... (${attempts}/${maxAttempts})`);
+          await new Promise((resolve) => setTimeout(resolve, delay));
         } else {
           throw err;
         }

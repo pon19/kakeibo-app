@@ -1,7 +1,7 @@
 /**
  * ブラウザの Canvas を使用して画像を軽量化（リサイズ＆JPEG化）するユーティリティ
  */
-export async function compressImage(file: File, maxWidth = 1280, maxHeight = 1280, quality = 0.8): Promise<File> {
+export async function compressImage(file: File, maxWidth = 1024, maxHeight = 1024, quality = 0.8): Promise<File> {
   return new Promise((resolve, reject) => {
     // 画像以外のファイルはそのまま返す
     if (!file.type.startsWith('image/')) {
