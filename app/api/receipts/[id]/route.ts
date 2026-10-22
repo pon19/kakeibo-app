@@ -37,7 +37,7 @@ export async function DELETE(
   }
 }
 
-// PUT: 取引データの編集更新
+// PUT: 取引データの編集更新（is_sharedフラグに対応）
 export async function PUT(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
@@ -65,6 +65,7 @@ export async function PUT(
       tax_amount: body.tax_amount ?? 0,
       category: body.category,
       items: body.items || [],
+      is_shared: body.is_shared ?? true, // ← 追加: 共有/個人フラグを更新対象に含める
     };
 
     const { data, error } = await supabase

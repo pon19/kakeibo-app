@@ -15,6 +15,7 @@ interface Transaction {
   purchased_at: string;
   total_amount: number;
   category: string;
+  is_shared?: boolean; // ← 追加: 共有/個人フラグ
   items?: ReceiptItem[];
 }
 
@@ -67,6 +68,7 @@ export default function ReceiptsPage() {
   const handleEditClick = (transaction: Transaction) => {
     setEditingTransaction({
       ...transaction,
+      is_shared: transaction.is_shared ?? true, // 初期値（未指定なら共有）
       items: transaction.items ? [...transaction.items] : [],
     });
     setIsModalOpen(true);
@@ -119,6 +121,7 @@ export default function ReceiptsPage() {
           purchased_at: editingTransaction.purchased_at,
           total_amount: Number(editingTransaction.total_amount),
           category: editingTransaction.category,
+          is_shared: editingTransaction.is_shared, // ← 追加: 共有/個人フラグ
           items: editingTransaction.items || [],
         }),
       });
@@ -164,17 +167,29 @@ export default function ReceiptsPage() {
           {transactions.map((t) => {
             const isExpanded = expandedId === t.id;
             const hasItems = t.items && t.items.length > 0;
+            const isShared = t.is_shared ?? true;
 
             return (
               <div key={t.id} className="p-4 space-y-2">
                 <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-bold text-gray-900 text-base">
                         {t.merchant_name || '名称未設定'}
                       </span>
                       <span className="text-xs px-2 py-0.5 rounded bg-blue-50 text-blue-600 font-medium border border-blue-100">
                         {t.category || '未分類'}
+                      </span>
+
+                      {/* 👥 共有 / 👤 個人 バッジ */}
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded font-semibold border ${
+                          isShared
+                            ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                            : 'bg-slate-100 text-slate-600 border-slate-300'
+                        }`}
+                      >
+                        {isShared ? '👥 家族共有' : '👤 個人'}
                       </span>
                     </div>
                     <div className="text-xs text-gray-400 mt-1">
@@ -240,6 +255,36 @@ export default function ReceiptsPage() {
             <h2 className="text-lg font-bold text-gray-800 border-b pb-2">取引データの編集</h2>
 
             <div className="space-y-3 text-sm">
+              {/* 👥 共有 / 👤 個人 切替トグル */}
+              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <div>
+                  <p className="text-xs font-bold text-slate-800">
+                    {editingTransaction.is_shared ? '👥 家族共有' : '👤 個人の記録'}
+                  </p>
+                  <p className="text-[10px] text-slate-500">
+                    {editingTransaction.is_shared
+                      ? '世帯全体のグラフ・一覧に反映'
+                      : '自分のみ閲覧・計算に反映'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setEditingTransaction({
+                      ...editingTransaction,
+                      is_shared: !editingTransaction.is_shared,
+                    })
+                  }
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition ${
+                    editingTransaction.is_shared
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                  }`}
+                >
+                  {editingTransaction.is_shared ? '共有中' : '個人用'}
+                </button>
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1">店舗名</label>
                 <input
