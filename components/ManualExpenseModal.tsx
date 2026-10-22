@@ -41,6 +41,10 @@ export default function ManualExpenseModal({
   const [totalAmount, setTotalAmount] = useState('');
   const [category, setCategory] = useState('食費');
   const [taxRate, setTaxRate] = useState<'10' | '8'>('10');
+  
+  // 共有/個人切り替え用State（デフォルトは true = 家族共有）
+  const [isShared, setIsShared] = useState(true);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -80,6 +84,7 @@ export default function ManualExpenseModal({
           tax_type: 'inclusive',
           tax_amount: taxAmount,
           category,
+          is_shared: isShared, // ← 共有/個人フラグを追加
           items: [
             {
               name: merchantName || (type === 'expense' ? '手入力支出' : '手入力収入'),
@@ -94,6 +99,7 @@ export default function ManualExpenseModal({
       if (data.success) {
         setMerchantName('');
         setTotalAmount('');
+        setIsShared(true); // 初期化
         onSuccess();
         onClose();
       } else {
@@ -154,6 +160,29 @@ export default function ManualExpenseModal({
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* 👥 家族共有 / 👤 個人用 切替トグル */}
+          <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
+            <div>
+              <p className="text-xs font-bold text-slate-800">
+                {isShared ? '👥 家族共有' : '👤 個人の記録'}
+              </p>
+              <p className="text-[10px] text-slate-500">
+                {isShared ? '世帯全体のグラフ・一覧に反映' : '自分のみ閲覧・計算に反映'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsShared(!isShared)}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition ${
+                isShared
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+              }`}
+            >
+              {isShared ? '共有中' : '個人用'}
+            </button>
+          </div>
+
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">
               {type === 'expense' ? '用途・店舗名' : '収入元・名称'}

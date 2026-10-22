@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
-// GET: 取引履歴取得（所属グループがあればグループ共有データを含めて取得）
+// GET: 取引履歴取得（家族共有データ ＋ 自分の全データ を取得）
 export async function GET() {
   try {
     const supabase = await createClient();
@@ -21,10 +21,13 @@ export async function GET() {
     let query = supabase.from('transactions').select('*');
 
     if (member?.household_id) {
-      // グループ所属時は、そのグループのデータ または 個人のデータを取得
-      query = query.or(`household_id.eq.${member.household_id},user_id.eq.${user.id}`);
+      // グループ所属時:
+      // 「同じグループの共有データ(is_shared=true)」 または 「自分が作成した全データ(個人用含む)」を取得
+      query = query.or(
+        `and(household_id.eq.${member.household_id},is_shared.eq.true),user_id.eq.${user.id}`
+      );
     } else {
-      // 未所属時は個人のデータのみ取得
+      // 未所属時: 自分のデータのみ取得
       query = query.eq('user_id', user.id);
     }
 
@@ -38,8 +41,7 @@ export async function GET() {
   }
 }
 
-// POST: 取引データ新規保存（グループ所属時は household_id も自動設定）
-// app/api/receipts/route.ts 内の POST 部分
+// POST: 取引データ新規保存（is_sharedフラグに対応）
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createClient();
@@ -62,7 +64,7 @@ export async function POST(req: NextRequest) {
       .insert({
         user_id: user.id,
         household_id: member?.household_id || null,
-        type: body.type || 'expense', // ← type (expense / income) を追加
+        type: body.type || 'expense',
         merchant_name: body.merchant_name,
         purchased_at: body.purchased_at,
         total_amount: body.total_amount,
@@ -71,6 +73,7 @@ export async function POST(req: NextRequest) {
         tax_amount: body.tax_amount || 0,
         category: body.category,
         items: body.items || [],
+        is_shared: body.is_shared ?? true, // ← 共有/個人フラグ（未指定ならデフォルト true）
       })
       .select()
       .single();
