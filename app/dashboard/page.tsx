@@ -19,8 +19,8 @@ import {
 interface ReceiptItem {
   name: string;
   price: number;
-  quantity: number;
-  tax_rate: number;
+  quantity?: number;
+  tax_rate?: number;
 }
 
 interface Receipt {
@@ -35,7 +35,7 @@ interface Receipt {
   tax_amount: number;
   items: ReceiptItem[];
   created_at: string;
-  is_shared?: boolean; // ← 共有/個人フラグ
+  is_shared?: boolean;
 }
 
 type ViewMode = 'category' | 'daily' | 'monthly' | 'yearly' | 'custom';
@@ -52,6 +52,9 @@ export default function Dashboard() {
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
   const [inputBudget, setInputBudget] = useState('');
   const [savingBudget, setSavingBudget] = useState(false);
+
+  // 明細展開用 State (展開中のID)
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // グラフフィルター用 State
   const [viewMode, setViewMode] = useState<ViewMode>('category');
@@ -130,7 +133,10 @@ export default function Dashboard() {
     }
   };
 
-  // 1. スコープ（すべて / 家族共有のみ / 個人用のみ）でフィルタリング
+  const toggleExpand = (id: string) => {
+    setExpandedId((prev) => (prev === id ? null : id));
+  };
+
   const scopedReceipts = useMemo(() => {
     return receipts.filter((r) => {
       const isShared = r.is_shared ?? true;
@@ -140,107 +146,95 @@ export default function Dashboard() {
     });
   }, [receipts, scopeMode]);
 
-  // 今月の取引データ
   const currentMonthReceipts = useMemo(() => {
     return scopedReceipts.filter((r) => r.purchased_at?.startsWith(currentMonthStr));
   }, [scopedReceipts, currentMonthStr]);
 
-  // 今月の支出合計
   const currentMonthExpense = useMemo(() => {
     return currentMonthReceipts
       .filter((r) => r.type !== 'income')
       .reduce((sum, r) => sum + (r.total_amount || 0), 0);
   }, [currentMonthReceipts]);
 
-  // 今月の収入合計
   const currentMonthIncome = useMemo(() => {
     return currentMonthReceipts
       .filter((r) => r.type === 'income')
       .reduce((sum, r) => sum + (r.total_amount || 0), 0);
   }, [currentMonthReceipts]);
 
-  // 予算進捗率 (%)
   const budgetUsagePercent = useMemo(() => {
     if (!budget || budget <= 0) return 0;
     return Math.min(Math.round((currentMonthExpense / budget) * 100), 100);
   }, [currentMonthExpense, budget]);
 
-  // 2. 選択された表示モードに応じたグラフ用データの集計
-  // 1. chartData 集計部分の型を柔軟（any[]）または統一構造にする
-const chartData = useMemo(() => {
-  const expenses = scopedReceipts.filter((r) => r.type !== 'income');
+  const chartData = useMemo(() => {
+    const expenses = scopedReceipts.filter((r) => r.type !== 'income');
 
-  // カテゴリー別（今月）
-  if (viewMode === 'category') {
-    const map: { [key: string]: number } = {};
-    expenses
-      .filter((r) => r.purchased_at?.startsWith(currentMonthStr))
-      .forEach((r) => {
-        const cat = r.category || '未分類';
-        map[cat] = (map[cat] || 0) + (r.total_amount || 0);
+    if (viewMode === 'category') {
+      const map: { [key: string]: number } = {};
+      expenses
+        .filter((r) => r.purchased_at?.startsWith(currentMonthStr))
+        .forEach((r) => {
+          const cat = r.category || '未分類';
+          map[cat] = (map[cat] || 0) + (r.total_amount || 0);
+        });
+      return Object.entries(map).map(([name, value]) => ({ name, value }));
+    }
+
+    if (viewMode === 'daily') {
+      const map: { [key: string]: number } = {};
+      expenses
+        .filter((r) => r.purchased_at?.startsWith(currentMonthStr))
+        .forEach((r) => {
+          const day = r.purchased_at?.slice(8, 10) ? `${r.purchased_at.slice(8, 10)}日` : '不明';
+          map[day] = (map[day] || 0) + (r.total_amount || 0);
+        });
+      return Object.entries(map)
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([day, amount]) => ({ day, amount, name: day, value: amount }));
+    }
+
+    if (viewMode === 'monthly') {
+      const map: { [key: string]: number } = {};
+      expenses.forEach((r) => {
+        const month = r.purchased_at?.slice(0, 7);
+        if (month) {
+          map[month] = (map[month] || 0) + (r.total_amount || 0);
+        }
       });
-    return Object.entries(map).map(([name, value]) => ({ name, value }));
-  }
+      return Object.entries(map)
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([month, amount]) => ({ month, amount, name: month, value: amount }));
+    }
 
-  // 日別推移（今月）
-  if (viewMode === 'daily') {
-    const map: { [key: string]: number } = {};
-    expenses
-      .filter((r) => r.purchased_at?.startsWith(currentMonthStr))
-      .forEach((r) => {
-        const day = r.purchased_at?.slice(8, 10) ? `${r.purchased_at.slice(8, 10)}日` : '不明';
-        map[day] = (map[day] || 0) + (r.total_amount || 0);
+    if (viewMode === 'yearly') {
+      const map: { [key: string]: number } = {};
+      expenses.forEach((r) => {
+        const year = r.purchased_at?.slice(0, 4);
+        if (year) {
+          map[year] = (map[year] || 0) + (r.total_amount || 0);
+        }
       });
-    return Object.entries(map)
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([day, amount]) => ({ day, amount, name: day, value: amount })); // name, value も併記
-  }
+      return Object.entries(map)
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([year, amount]) => ({ year, amount, name: year, value: amount }));
+    }
 
-  // 月毎推移
-  if (viewMode === 'monthly') {
-    const map: { [key: string]: number } = {};
-    expenses.forEach((r) => {
-      const month = r.purchased_at?.slice(0, 7);
-      if (month) {
-        map[month] = (map[month] || 0) + (r.total_amount || 0);
-      }
-    });
-    return Object.entries(map)
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([month, amount]) => ({ month, amount, name: month, value: amount }));
-  }
+    if (viewMode === 'custom') {
+      const map: { [key: string]: number } = {};
+      expenses.forEach((r) => {
+        const date = r.purchased_at?.slice(0, 10) || '';
+        if ((!customStartDate || date >= customStartDate) && (!customEndDate || date <= customEndDate)) {
+          const cat = r.category || '未分類';
+          map[cat] = (map[cat] || 0) + (r.total_amount || 0);
+        }
+      });
+      return Object.entries(map).map(([name, value]) => ({ name, value }));
+    }
 
-  // 年別推移
-  if (viewMode === 'yearly') {
-    const map: { [key: string]: number } = {};
-    expenses.forEach((r) => {
-      const year = r.purchased_at?.slice(0, 4);
-      if (year) {
-        map[year] = (map[year] || 0) + (r.total_amount || 0);
-      }
-    });
-    return Object.entries(map)
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([year, amount]) => ({ year, amount, name: year, value: amount }));
-  }
+    return [];
+  }, [scopedReceipts, currentMonthStr, viewMode, customStartDate, customEndDate]);
 
-  // 任意の日付別
-  if (viewMode === 'custom') {
-    const map: { [key: string]: number } = {};
-    expenses.forEach((r) => {
-      const date = r.purchased_at?.slice(0, 10) || '';
-      if ((!customStartDate || date >= customStartDate) && (!customEndDate || date <= customEndDate)) {
-        const cat = r.category || '未分類';
-        map[cat] = (map[cat] || 0) + (r.total_amount || 0);
-      }
-    });
-    return Object.entries(map).map(([name, value]) => ({ name, value }));
-  }
-
-  return [];
-}, [scopedReceipts, currentMonthStr, viewMode, customStartDate, customEndDate]);
-
-  // 取引履歴のフィルタリング
   const filteredReceipts = useMemo(() => {
     return scopedReceipts.filter((r) => {
       const kw = searchKeyword.trim().toLowerCase();
@@ -282,7 +276,7 @@ const chartData = useMemo(() => {
         <p className="text-xs text-slate-400 mt-1">支出・収入・予算の進捗状況</p>
       </header>
 
-      {/* 👥 家族共有 / 👤 個人用 スコープ切替タブ */}
+      {/* スコープ切替タブ */}
       <div className="flex bg-slate-200/70 p-1 rounded-xl text-xs font-bold mb-4">
         <button
           onClick={() => setScopeMode('all')}
@@ -381,9 +375,8 @@ const chartData = useMemo(() => {
           )}
         </div>
 
-        {/* --- 📊 グラフ切り替えセクション --- */}
+        {/* 📊 グラフ切り替えセクション */}
         <div className="pt-2 border-t space-y-3">
-          {/* 表示粒度タブ */}
           <div className="flex gap-1 overflow-x-auto pb-1 text-xs">
             {[
               { id: 'category', label: 'カテゴリー別' },
@@ -406,7 +399,6 @@ const chartData = useMemo(() => {
             ))}
           </div>
 
-          {/* 任意期間指定UI（custom選択時のみ表示） */}
           {viewMode === 'custom' && (
             <div className="flex items-center gap-2 p-2 bg-slate-50 rounded-xl text-xs border border-slate-200">
               <input
@@ -425,10 +417,8 @@ const chartData = useMemo(() => {
             </div>
           )}
 
-          {/* グラフ描画領域 */}
           {chartData.length > 0 ? (
             <div className="h-48 w-full pt-2">
-              {/* カテゴリー別 / 任意期間（円グラフ） */}
               {(viewMode === 'category' || viewMode === 'custom') && (
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -451,31 +441,29 @@ const chartData = useMemo(() => {
                 </ResponsiveContainer>
               )}
 
-              {/* 日別推移（折れ線グラフ） */}
-                {viewMode === 'daily' && (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData as any}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                      <XAxis dataKey="day" tick={{ fontSize: 10 }} />
-                      <YAxis tick={{ fontSize: 10 }} />
-                      <Tooltip formatter={(val: any) => [`¥${(Number(val) || 0).toLocaleString()}`, '支出']} />
-                      <Line type="monotone" dataKey="amount" stroke="#6366f1" strokeWidth={2.5} dot={{ r: 3 }} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                )}
+              {viewMode === 'daily' && (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData as any}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="day" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} />
+                    <Tooltip formatter={(val: any) => [`¥${(Number(val) || 0).toLocaleString()}`, '支出']} />
+                    <Line type="monotone" dataKey="amount" stroke="#6366f1" strokeWidth={2.5} dot={{ r: 3 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
 
-                {/* 月毎・年別推移（棒グラフ） */}
-                {(viewMode === 'monthly' || viewMode === 'yearly') && (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData as any}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                      <XAxis dataKey={viewMode === 'monthly' ? 'month' : 'year'} tick={{ fontSize: 10 }} />
-                      <YAxis tick={{ fontSize: 10 }} />
-                      <Tooltip formatter={(val: any) => [`¥${(Number(val) || 0).toLocaleString()}`, '支出']} />
-                      <Bar dataKey="amount" fill="#6366f1" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                )}
+              {(viewMode === 'monthly' || viewMode === 'yearly') && (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData as any}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey={viewMode === 'monthly' ? 'month' : 'year'} tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} />
+                    <Tooltip formatter={(val: any) => [`¥${(Number(val) || 0).toLocaleString()}`, '支出']} />
+                    <Bar dataKey="amount" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </div>
           ) : (
             <p className="text-xs text-center text-slate-400 py-8 bg-slate-50 rounded-xl">
@@ -501,13 +489,14 @@ const chartData = useMemo(() => {
         <div className="flex flex-col gap-3">
           {filteredReceipts.map((r) => {
             const isShared = r.is_shared ?? true;
+            const isExpanded = expandedId === r.id;
+            const hasItems = r.items && r.items.length > 0;
 
             return (
               <div key={r.id} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
                 <div className="flex justify-between items-start mb-1">
                   <span className="text-xs text-slate-400">{r.purchased_at?.slice(0, 10)}</span>
                   <div className="flex gap-1 items-center">
-                    {/* 👥 共有 / 👤 個人 バッジ */}
                     <span
                       className={`text-[10px] px-1.5 py-0.5 rounded font-bold border ${
                         isShared
@@ -539,6 +528,32 @@ const chartData = useMemo(() => {
                     {r.type === 'income' ? '+' : ''}¥{(r.total_amount || 0).toLocaleString()}
                   </span>
                 </div>
+
+                {/* 明細（items）アコーディオン表示部分 */}
+                {hasItems && (
+                  <div className="mt-2 pt-2 border-t border-slate-50">
+                    <button
+                      type="button"
+                      onClick={() => toggleExpand(r.id)}
+                      className="text-xs text-indigo-600 font-semibold hover:text-indigo-800 flex items-center gap-1"
+                    >
+                      {isExpanded ? '▲ 明細を閉じる' : `▼ 購入明細 (${r.items.length}件) を表示`}
+                    </button>
+
+                    {isExpanded && (
+                      <div className="mt-2 p-2.5 bg-slate-50 rounded-lg space-y-1 text-xs text-slate-700">
+                        {r.items.map((item, idx) => (
+                          <div key={idx} className="flex justify-between items-center py-0.5">
+                            <span className="truncate pr-2">• {item.name || '品名なし'}</span>
+                            <span className="font-medium text-slate-900 shrink-0">
+                              ¥{(item.price || 0).toLocaleString()}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="mt-3 pt-2 border-t border-slate-100 flex justify-end gap-2">
                   <button
