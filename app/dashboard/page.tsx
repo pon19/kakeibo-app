@@ -166,78 +166,79 @@ export default function Dashboard() {
   }, [currentMonthExpense, budget]);
 
   // 2. 選択された表示モードに応じたグラフ用データの集計
-  const chartData = useMemo(() => {
-    const expenses = scopedReceipts.filter((r) => r.type !== 'income');
+  // 1. chartData 集計部分の型を柔軟（any[]）または統一構造にする
+const chartData = useMemo(() => {
+  const expenses = scopedReceipts.filter((r) => r.type !== 'income');
 
-    // カテゴリー別（今月）
-    if (viewMode === 'category') {
-      const map: { [key: string]: number } = {};
-      expenses
-        .filter((r) => r.purchased_at?.startsWith(currentMonthStr))
-        .forEach((r) => {
-          const cat = r.category || '未分類';
-          map[cat] = (map[cat] || 0) + (r.total_amount || 0);
-        });
-      return Object.entries(map).map(([name, value]) => ({ name, value }));
-    }
-
-    // 日別推移（今月）
-    if (viewMode === 'daily') {
-      const map: { [key: string]: number } = {};
-      expenses
-        .filter((r) => r.purchased_at?.startsWith(currentMonthStr))
-        .forEach((r) => {
-          const day = r.purchased_at?.slice(8, 10) ? `${r.purchased_at.slice(8, 10)}日` : '不明';
-          map[day] = (map[day] || 0) + (r.total_amount || 0);
-        });
-      return Object.entries(map)
-        .sort((a, b) => a[0].localeCompare(b[0]))
-        .map(([day, amount]) => ({ day, amount }));
-    }
-
-    // 月毎推移（過去データ含む全期間）
-    if (viewMode === 'monthly') {
-      const map: { [key: string]: number } = {};
-      expenses.forEach((r) => {
-        const month = r.purchased_at?.slice(0, 7);
-        if (month) {
-          map[month] = (map[month] || 0) + (r.total_amount || 0);
-        }
+  // カテゴリー別（今月）
+  if (viewMode === 'category') {
+    const map: { [key: string]: number } = {};
+    expenses
+      .filter((r) => r.purchased_at?.startsWith(currentMonthStr))
+      .forEach((r) => {
+        const cat = r.category || '未分類';
+        map[cat] = (map[cat] || 0) + (r.total_amount || 0);
       });
-      return Object.entries(map)
-        .sort((a, b) => a[0].localeCompare(b[0]))
-        .map(([month, amount]) => ({ month, amount }));
-    }
+    return Object.entries(map).map(([name, value]) => ({ name, value }));
+  }
 
-    // 年別推移
-    if (viewMode === 'yearly') {
-      const map: { [key: string]: number } = {};
-      expenses.forEach((r) => {
-        const year = r.purchased_at?.slice(0, 4);
-        if (year) {
-          map[year] = (map[year] || 0) + (r.total_amount || 0);
-        }
+  // 日別推移（今月）
+  if (viewMode === 'daily') {
+    const map: { [key: string]: number } = {};
+    expenses
+      .filter((r) => r.purchased_at?.startsWith(currentMonthStr))
+      .forEach((r) => {
+        const day = r.purchased_at?.slice(8, 10) ? `${r.purchased_at.slice(8, 10)}日` : '不明';
+        map[day] = (map[day] || 0) + (r.total_amount || 0);
       });
-      return Object.entries(map)
-        .sort((a, b) => a[0].localeCompare(b[0]))
-        .map(([year, amount]) => ({ year, amount }));
-    }
+    return Object.entries(map)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([day, amount]) => ({ day, amount, name: day, value: amount })); // name, value も併記
+  }
 
-    // 任意の日付別（指定範囲内でのカテゴリ別集計）
-    if (viewMode === 'custom') {
-      const map: { [key: string]: number } = {};
-      expenses.forEach((r) => {
-        const date = r.purchased_at?.slice(0, 10) || '';
-        if ((!customStartDate || date >= customStartDate) && (!customEndDate || date <= customEndDate)) {
-          const cat = r.category || '未分類';
-          map[cat] = (map[cat] || 0) + (r.total_amount || 0);
-        }
-      });
-      return Object.entries(map).map(([name, value]) => ({ name, value }));
-    }
+  // 月毎推移
+  if (viewMode === 'monthly') {
+    const map: { [key: string]: number } = {};
+    expenses.forEach((r) => {
+      const month = r.purchased_at?.slice(0, 7);
+      if (month) {
+        map[month] = (map[month] || 0) + (r.total_amount || 0);
+      }
+    });
+    return Object.entries(map)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([month, amount]) => ({ month, amount, name: month, value: amount }));
+  }
 
-    return [];
-  }, [scopedReceipts, currentMonthStr, viewMode, customStartDate, customEndDate]);
+  // 年別推移
+  if (viewMode === 'yearly') {
+    const map: { [key: string]: number } = {};
+    expenses.forEach((r) => {
+      const year = r.purchased_at?.slice(0, 4);
+      if (year) {
+        map[year] = (map[year] || 0) + (r.total_amount || 0);
+      }
+    });
+    return Object.entries(map)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([year, amount]) => ({ year, amount, name: year, value: amount }));
+  }
+
+  // 任意の日付別
+  if (viewMode === 'custom') {
+    const map: { [key: string]: number } = {};
+    expenses.forEach((r) => {
+      const date = r.purchased_at?.slice(0, 10) || '';
+      if ((!customStartDate || date >= customStartDate) && (!customEndDate || date <= customEndDate)) {
+        const cat = r.category || '未分類';
+        map[cat] = (map[cat] || 0) + (r.total_amount || 0);
+      }
+    });
+    return Object.entries(map).map(([name, value]) => ({ name, value }));
+  }
+
+  return [];
+}, [scopedReceipts, currentMonthStr, viewMode, customStartDate, customEndDate]);
 
   // 取引履歴のフィルタリング
   const filteredReceipts = useMemo(() => {
@@ -451,30 +452,30 @@ export default function Dashboard() {
               )}
 
               {/* 日別推移（折れ線グラフ） */}
-              {viewMode === 'daily' && (
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="day" tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 10 }} />
-                    <Tooltip formatter={(val: any) => [`¥${(Number(val) || 0).toLocaleString()}`, '支出']} />
-                    <Line type="monotone" dataKey="amount" stroke="#6366f1" strokeWidth={2.5} dot={{ r: 3 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              )}
+                {viewMode === 'daily' && (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartData as any}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="day" tick={{ fontSize: 10 }} />
+                      <YAxis tick={{ fontSize: 10 }} />
+                      <Tooltip formatter={(val: any) => [`¥${(Number(val) || 0).toLocaleString()}`, '支出']} />
+                      <Line type="monotone" dataKey="amount" stroke="#6366f1" strokeWidth={2.5} dot={{ r: 3 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
 
-              {/* 月毎・年別推移（棒グラフ） */}
-              {(viewMode === 'monthly' || viewMode === 'yearly') && (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey={viewMode === 'monthly' ? 'month' : 'year'} tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 10 }} />
-                    <Tooltip formatter={(val: any) => [`¥${(Number(val) || 0).toLocaleString()}`, '支出']} />
-                    <Bar dataKey="amount" fill="#6366f1" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
+                {/* 月毎・年別推移（棒グラフ） */}
+                {(viewMode === 'monthly' || viewMode === 'yearly') && (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartData as any}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey={viewMode === 'monthly' ? 'month' : 'year'} tick={{ fontSize: 10 }} />
+                      <YAxis tick={{ fontSize: 10 }} />
+                      <Tooltip formatter={(val: any) => [`¥${(Number(val) || 0).toLocaleString()}`, '支出']} />
+                      <Bar dataKey="amount" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
             </div>
           ) : (
             <p className="text-xs text-center text-slate-400 py-8 bg-slate-50 rounded-xl">
