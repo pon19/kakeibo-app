@@ -1,7 +1,20 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  LineChart,
+  Line,
+  CartesianGrid,
+} from 'recharts';
 
 interface ReceiptItem {
   name: string;
@@ -22,7 +35,11 @@ interface Receipt {
   tax_amount: number;
   items: ReceiptItem[];
   created_at: string;
+  is_shared?: boolean; // ← 共有/個人フラグ
 }
+
+type ViewMode = 'category' | 'daily' | 'monthly' | 'yearly' | 'custom';
+type ScopeMode = 'all' | 'shared' | 'personal';
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#64748b'];
 
@@ -36,15 +53,15 @@ export default function Dashboard() {
   const [inputBudget, setInputBudget] = useState('');
   const [savingBudget, setSavingBudget] = useState(false);
 
+  // グラフフィルター用 State
+  const [viewMode, setViewMode] = useState<ViewMode>('category');
+  const [scopeMode, setScopeMode] = useState<ScopeMode>('all');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
+
   // 検索・絞り込みフィルター用 State
   const [searchKeyword, setSearchKeyword] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-
-  // モーダル編集用 State
-  const [editingReceipt, setEditingReceipt] = useState<Receipt | null>(null);
-  const [isUpdating, setIsUpdating] = useState(false);
 
   const currentMonthStr = useMemo(() => {
     const now = new Date();
@@ -113,18 +130,29 @@ export default function Dashboard() {
     }
   };
 
-  const currentMonthReceipts = useMemo(() => {
-    return receipts.filter((r) => r.purchased_at?.startsWith(currentMonthStr));
-  }, [receipts, currentMonthStr]);
+  // 1. スコープ（すべて / 家族共有のみ / 個人用のみ）でフィルタリング
+  const scopedReceipts = useMemo(() => {
+    return receipts.filter((r) => {
+      const isShared = r.is_shared ?? true;
+      if (scopeMode === 'shared') return isShared;
+      if (scopeMode === 'personal') return !isShared;
+      return true;
+    });
+  }, [receipts, scopeMode]);
 
-  // 支出合計
+  // 今月の取引データ
+  const currentMonthReceipts = useMemo(() => {
+    return scopedReceipts.filter((r) => r.purchased_at?.startsWith(currentMonthStr));
+  }, [scopedReceipts, currentMonthStr]);
+
+  // 今月の支出合計
   const currentMonthExpense = useMemo(() => {
     return currentMonthReceipts
       .filter((r) => r.type !== 'income')
       .reduce((sum, r) => sum + (r.total_amount || 0), 0);
   }, [currentMonthReceipts]);
 
-  // 収入合計
+  // 今月の収入合計
   const currentMonthIncome = useMemo(() => {
     return currentMonthReceipts
       .filter((r) => r.type === 'income')
@@ -137,28 +165,83 @@ export default function Dashboard() {
     return Math.min(Math.round((currentMonthExpense / budget) * 100), 100);
   }, [currentMonthExpense, budget]);
 
-  const categoryData = useMemo(() => {
-    const map: { [key: string]: number } = {};
-    currentMonthReceipts
-      .filter((r) => r.type !== 'income')
-      .forEach((r) => {
-        const cat = r.category || '未分類';
-        map[cat] = (map[cat] || 0) + (r.total_amount || 0);
+  // 2. 選択された表示モードに応じたグラフ用データの集計
+  const chartData = useMemo(() => {
+    const expenses = scopedReceipts.filter((r) => r.type !== 'income');
+
+    // カテゴリー別（今月）
+    if (viewMode === 'category') {
+      const map: { [key: string]: number } = {};
+      expenses
+        .filter((r) => r.purchased_at?.startsWith(currentMonthStr))
+        .forEach((r) => {
+          const cat = r.category || '未分類';
+          map[cat] = (map[cat] || 0) + (r.total_amount || 0);
+        });
+      return Object.entries(map).map(([name, value]) => ({ name, value }));
+    }
+
+    // 日別推移（今月）
+    if (viewMode === 'daily') {
+      const map: { [key: string]: number } = {};
+      expenses
+        .filter((r) => r.purchased_at?.startsWith(currentMonthStr))
+        .forEach((r) => {
+          const day = r.purchased_at?.slice(8, 10) ? `${r.purchased_at.slice(8, 10)}日` : '不明';
+          map[day] = (map[day] || 0) + (r.total_amount || 0);
+        });
+      return Object.entries(map)
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([day, amount]) => ({ day, amount }));
+    }
+
+    // 月毎推移（過去データ含む全期間）
+    if (viewMode === 'monthly') {
+      const map: { [key: string]: number } = {};
+      expenses.forEach((r) => {
+        const month = r.purchased_at?.slice(0, 7);
+        if (month) {
+          map[month] = (map[month] || 0) + (r.total_amount || 0);
+        }
       });
+      return Object.entries(map)
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([month, amount]) => ({ month, amount }));
+    }
 
-    return Object.entries(map).map(([name, value]) => ({ name, value }));
-  }, [currentMonthReceipts]);
+    // 年別推移
+    if (viewMode === 'yearly') {
+      const map: { [key: string]: number } = {};
+      expenses.forEach((r) => {
+        const year = r.purchased_at?.slice(0, 4);
+        if (year) {
+          map[year] = (map[year] || 0) + (r.total_amount || 0);
+        }
+      });
+      return Object.entries(map)
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([year, amount]) => ({ year, amount }));
+    }
 
-  const categories = useMemo(() => {
-    const set = new Set<string>();
-    receipts.forEach((r) => {
-      if (r.category) set.add(r.category);
-    });
-    return Array.from(set);
-  }, [receipts]);
+    // 任意の日付別（指定範囲内でのカテゴリ別集計）
+    if (viewMode === 'custom') {
+      const map: { [key: string]: number } = {};
+      expenses.forEach((r) => {
+        const date = r.purchased_at?.slice(0, 10) || '';
+        if ((!customStartDate || date >= customStartDate) && (!customEndDate || date <= customEndDate)) {
+          const cat = r.category || '未分類';
+          map[cat] = (map[cat] || 0) + (r.total_amount || 0);
+        }
+      });
+      return Object.entries(map).map(([name, value]) => ({ name, value }));
+    }
 
+    return [];
+  }, [scopedReceipts, currentMonthStr, viewMode, customStartDate, customEndDate]);
+
+  // 取引履歴のフィルタリング
   const filteredReceipts = useMemo(() => {
-    return receipts.filter((r) => {
+    return scopedReceipts.filter((r) => {
       const kw = searchKeyword.trim().toLowerCase();
       const matchMerchant = r.merchant_name?.toLowerCase().includes(kw);
       const matchItems = r.items?.some((item) => item.name?.toLowerCase().includes(kw));
@@ -168,13 +251,9 @@ export default function Dashboard() {
         return false;
       }
 
-      const date = r.purchased_at?.slice(0, 10) || '';
-      if (startDate && date < startDate) return false;
-      if (endDate && date > endDate) return false;
-
       return true;
     });
-  }, [receipts, searchKeyword, selectedCategory, startDate, endDate]);
+  }, [scopedReceipts, searchKeyword, selectedCategory]);
 
   const handleDelete = async (id: string) => {
     if (!window.confirm('この取引データを削除しますか？')) return;
@@ -202,18 +281,50 @@ export default function Dashboard() {
         <p className="text-xs text-slate-400 mt-1">支出・収入・予算の進捗状況</p>
       </header>
 
+      {/* 👥 家族共有 / 👤 個人用 スコープ切替タブ */}
+      <div className="flex bg-slate-200/70 p-1 rounded-xl text-xs font-bold mb-4">
+        <button
+          onClick={() => setScopeMode('all')}
+          className={`flex-1 py-1.5 rounded-lg transition ${
+            scopeMode === 'all' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'
+          }`}
+        >
+          すべて
+        </button>
+        <button
+          onClick={() => setScopeMode('shared')}
+          className={`flex-1 py-1.5 rounded-lg transition ${
+            scopeMode === 'shared' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500'
+          }`}
+        >
+          👥 家族共有
+        </button>
+        <button
+          onClick={() => setScopeMode('personal')}
+          className={`flex-1 py-1.5 rounded-lg transition ${
+            scopeMode === 'personal' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-500'
+          }`}
+        >
+          👤 個人用
+        </button>
+      </div>
+
       {/* 今月の収支＆予算状況カード */}
       <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm mb-6 space-y-4">
         <div className="flex justify-between items-center border-b pb-3">
           <div>
-            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">今月の支出 ({currentMonthStr})</h2>
+            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+              今月の支出 ({currentMonthStr})
+            </h2>
             <div className="text-3xl font-extrabold text-slate-900 mt-1">
               ¥{currentMonthExpense.toLocaleString()}
             </div>
           </div>
           {currentMonthIncome > 0 && (
             <div className="text-right">
-              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">今月の収入</span>
+              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
+                今月の収入
+              </span>
               <div className="text-sm font-bold text-emerald-600 mt-1">
                 +¥{currentMonthIncome.toLocaleString()}
               </div>
@@ -269,36 +380,108 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* ドーナツチャート */}
-        {categoryData.length > 0 && (
-          <div className="pt-2">
-            <div className="h-40 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={categoryData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={40}
-                    outerRadius={60}
-                    paddingAngle={3}
-                    dataKey="value"
-                  >
-                    {categoryData.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value: any) => [
-                      `¥${(Number(value) || 0).toLocaleString()}`,
-                      '金額',
-                    ]}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
+        {/* --- 📊 グラフ切り替えセクション --- */}
+        <div className="pt-2 border-t space-y-3">
+          {/* 表示粒度タブ */}
+          <div className="flex gap-1 overflow-x-auto pb-1 text-xs">
+            {[
+              { id: 'category', label: 'カテゴリー別' },
+              { id: 'daily', label: '日別' },
+              { id: 'monthly', label: '月毎' },
+              { id: 'yearly', label: '年別' },
+              { id: 'custom', label: '任意日付' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setViewMode(tab.id as ViewMode)}
+                className={`px-3 py-1.5 rounded-lg font-bold whitespace-nowrap transition ${
+                  viewMode === tab.id
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
-        )}
+
+          {/* 任意期間指定UI（custom選択時のみ表示） */}
+          {viewMode === 'custom' && (
+            <div className="flex items-center gap-2 p-2 bg-slate-50 rounded-xl text-xs border border-slate-200">
+              <input
+                type="date"
+                value={customStartDate}
+                onChange={(e) => setCustomStartDate(e.target.value)}
+                className="p-1.5 border rounded-lg bg-white w-full"
+              />
+              <span className="text-slate-400">〜</span>
+              <input
+                type="date"
+                value={customEndDate}
+                onChange={(e) => setCustomEndDate(e.target.value)}
+                className="p-1.5 border rounded-lg bg-white w-full"
+              />
+            </div>
+          )}
+
+          {/* グラフ描画領域 */}
+          {chartData.length > 0 ? (
+            <div className="h-48 w-full pt-2">
+              {/* カテゴリー別 / 任意期間（円グラフ） */}
+              {(viewMode === 'category' || viewMode === 'custom') && (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={chartData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={40}
+                      outerRadius={65}
+                      paddingAngle={3}
+                      dataKey="value"
+                      nameKey="name"
+                    >
+                      {chartData.map((_, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(val: any) => [`¥${(Number(val) || 0).toLocaleString()}`, '金額']} />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+
+              {/* 日別推移（折れ線グラフ） */}
+              {viewMode === 'daily' && (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="day" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} />
+                    <Tooltip formatter={(val: any) => [`¥${(Number(val) || 0).toLocaleString()}`, '支出']} />
+                    <Line type="monotone" dataKey="amount" stroke="#6366f1" strokeWidth={2.5} dot={{ r: 3 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+
+              {/* 月毎・年別推移（棒グラフ） */}
+              {(viewMode === 'monthly' || viewMode === 'yearly') && (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey={viewMode === 'monthly' ? 'month' : 'year'} tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} />
+                    <Tooltip formatter={(val: any) => [`¥${(Number(val) || 0).toLocaleString()}`, '支出']} />
+                    <Bar dataKey="amount" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          ) : (
+            <p className="text-xs text-center text-slate-400 py-8 bg-slate-50 rounded-xl">
+              表示可能な集計データがありません
+            </p>
+          )}
+        </div>
       </div>
 
       {/* 取引履歴一覧 */}
@@ -315,34 +498,58 @@ export default function Dashboard() {
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          {filteredReceipts.map((r) => (
-            <div key={r.id} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
-              <div className="flex justify-between items-start mb-1">
-                <span className="text-xs text-slate-400">{r.purchased_at?.slice(0, 10)}</span>
-                <span className={`text-xs px-2 py-0.5 rounded font-medium ${
-                  r.type === 'income' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
-                }`}>
-                  {r.type === 'income' ? '収入' : r.category || '未分類'}
-                </span>
-              </div>
+          {filteredReceipts.map((r) => {
+            const isShared = r.is_shared ?? true;
 
-              <div className="flex justify-between items-center mt-1">
-                <span className="font-bold text-slate-800 text-base">{r.merchant_name}</span>
-                <span className={`font-bold text-lg ${r.type === 'income' ? 'text-emerald-600' : 'text-slate-900'}`}>
-                  {r.type === 'income' ? '+' : ''}¥{(r.total_amount || 0).toLocaleString()}
-                </span>
-              </div>
+            return (
+              <div key={r.id} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+                <div className="flex justify-between items-start mb-1">
+                  <span className="text-xs text-slate-400">{r.purchased_at?.slice(0, 10)}</span>
+                  <div className="flex gap-1 items-center">
+                    {/* 👥 共有 / 👤 個人 バッジ */}
+                    <span
+                      className={`text-[10px] px-1.5 py-0.5 rounded font-bold border ${
+                        isShared
+                          ? 'bg-indigo-50 text-indigo-600 border-indigo-100'
+                          : 'bg-slate-100 text-slate-600 border-slate-200'
+                      }`}
+                    >
+                      {isShared ? '👥 共有' : '👤 個人'}
+                    </span>
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded font-medium ${
+                        r.type === 'income'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-slate-100 text-slate-600'
+                      }`}
+                    >
+                      {r.type === 'income' ? '収入' : r.category || '未分類'}
+                    </span>
+                  </div>
+                </div>
 
-              <div className="mt-3 pt-2 border-t border-slate-100 flex justify-end gap-2">
-                <button
-                  onClick={() => handleDelete(r.id)}
-                  className="text-xs px-2.5 py-1 bg-rose-50 text-rose-600 font-medium rounded-md hover:bg-rose-100 transition"
-                >
-                  🗑 削除
-                </button>
+                <div className="flex justify-between items-center mt-1">
+                  <span className="font-bold text-slate-800 text-base">{r.merchant_name}</span>
+                  <span
+                    className={`font-bold text-lg ${
+                      r.type === 'income' ? 'text-emerald-600' : 'text-slate-900'
+                    }`}
+                  >
+                    {r.type === 'income' ? '+' : ''}¥{(r.total_amount || 0).toLocaleString()}
+                  </span>
+                </div>
+
+                <div className="mt-3 pt-2 border-t border-slate-100 flex justify-end gap-2">
+                  <button
+                    onClick={() => handleDelete(r.id)}
+                    className="text-xs px-2.5 py-1 bg-rose-50 text-rose-600 font-medium rounded-md hover:bg-rose-100 transition"
+                  >
+                    🗑 削除
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
