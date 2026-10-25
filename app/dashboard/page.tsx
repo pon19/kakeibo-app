@@ -167,6 +167,7 @@ export default function Dashboard() {
     return Math.min(Math.round((currentMonthExpense / budget) * 100), 100);
   }, [currentMonthExpense, budget]);
 
+  // グラフデータ集計
   const chartData = useMemo(() => {
     const expenses = scopedReceipts.filter((r) => r.type !== 'income');
 
@@ -178,7 +179,9 @@ export default function Dashboard() {
           const cat = r.category || '未分類';
           map[cat] = (map[cat] || 0) + (r.total_amount || 0);
         });
-      return Object.entries(map).map(([name, value]) => ({ name, value }));
+      return Object.entries(map)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value); // 金額が多い順にソート
     }
 
     if (viewMode === 'daily') {
@@ -229,11 +232,19 @@ export default function Dashboard() {
           map[cat] = (map[cat] || 0) + (r.total_amount || 0);
         }
       });
-      return Object.entries(map).map(([name, value]) => ({ name, value }));
+      return Object.entries(map)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value);
     }
 
     return [];
   }, [scopedReceipts, currentMonthStr, viewMode, customStartDate, customEndDate]);
+
+  // 円グラフ用 合計金額の計算（割合算出用）
+  const pieTotalValue = useMemo(() => {
+    if (viewMode !== 'category' && viewMode !== 'custom') return 0;
+    return chartData.reduce((sum, item) => sum + (Number(item.value) || 0), 0);
+  }, [chartData, viewMode]);
 
   const filteredReceipts = useMemo(() => {
     return scopedReceipts.filter((r) => {
@@ -418,51 +429,92 @@ export default function Dashboard() {
           )}
 
           {chartData.length > 0 ? (
-            <div className="h-48 w-full pt-2">
+            <div className="space-y-4">
+              <div className="h-48 w-full pt-2">
+                {/* カテゴリー別 / 任意期間（円グラフ） */}
+                {(viewMode === 'category' || viewMode === 'custom') && (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={chartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={40}
+                        outerRadius={65}
+                        paddingAngle={3}
+                        dataKey="value"
+                        nameKey="name"
+                      >
+                        {chartData.map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(val: any) => {
+                          const amount = Number(val) || 0;
+                          const percent = pieTotalValue > 0 ? ((amount / pieTotalValue) * 100).toFixed(1) : '0';
+                          return [`¥${amount.toLocaleString()} (${percent}%)`, '金額・割合'];
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
+
+                {/* 日別推移（折れ線グラフ） */}
+                {viewMode === 'daily' && (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartData as any}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="day" tick={{ fontSize: 10 }} />
+                      <YAxis tick={{ fontSize: 10 }} />
+                      <Tooltip formatter={(val: any) => [`¥${(Number(val) || 0).toLocaleString()}`, '支出']} />
+                      <Line type="monotone" dataKey="amount" stroke="#6366f1" strokeWidth={2.5} dot={{ r: 3 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
+
+                {/* 月毎・年別推移（棒グラフ） */}
+                {(viewMode === 'monthly' || viewMode === 'yearly') && (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartData as any}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey={viewMode === 'monthly' ? 'month' : 'year'} tick={{ fontSize: 10 }} />
+                      <YAxis tick={{ fontSize: 10 }} />
+                      <Tooltip formatter={(val: any) => [`¥${(Number(val) || 0).toLocaleString()}`, '支出']} />
+                      <Bar dataKey="amount" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+
+              {/* 🏷 カテゴリー別の内訳一覧（カテゴリー名・金額・割合を表示） */}
               {(viewMode === 'category' || viewMode === 'custom') && (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={chartData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={40}
-                      outerRadius={65}
-                      paddingAngle={3}
-                      dataKey="value"
-                      nameKey="name"
-                    >
-                      {chartData.map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(val: any) => [`¥${(Number(val) || 0).toLocaleString()}`, '金額']} />
-                  </PieChart>
-                </ResponsiveContainer>
-              )}
+                <div className="pt-2 border-t border-slate-100 space-y-2">
+                  <p className="text-xs font-bold text-slate-600 mb-2">カテゴリー別内訳</p>
+                  <div className="space-y-1.5">
+                    {chartData.map((item, index) => {
+                      const amount = Number(item.value) || 0;
+                      const percent = pieTotalValue > 0 ? ((amount / pieTotalValue) * 100).toFixed(1) : '0';
+                      const color = COLORS[index % COLORS.length];
 
-              {viewMode === 'daily' && (
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData as any}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="day" tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 10 }} />
-                    <Tooltip formatter={(val: any) => [`¥${(Number(val) || 0).toLocaleString()}`, '支出']} />
-                    <Line type="monotone" dataKey="amount" stroke="#6366f1" strokeWidth={2.5} dot={{ r: 3 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              )}
-
-              {(viewMode === 'monthly' || viewMode === 'yearly') && (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData as any}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey={viewMode === 'monthly' ? 'month' : 'year'} tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 10 }} />
-                    <Tooltip formatter={(val: any) => [`¥${(Number(val) || 0).toLocaleString()}`, '支出']} />
-                    <Bar dataKey="amount" fill="#6366f1" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                      return (
+                        <div key={item.name} className="flex items-center justify-between text-xs p-1.5 rounded-lg bg-slate-50">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="w-3 h-3 rounded-full shrink-0"
+                              style={{ backgroundColor: color }}
+                            ></span>
+                            <span className="font-semibold text-slate-800">{item.name}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="font-bold text-slate-900">¥{amount.toLocaleString()}</span>
+                            <span className="text-slate-400 font-medium w-12 text-right">{percent}%</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               )}
             </div>
           ) : (
@@ -529,7 +581,6 @@ export default function Dashboard() {
                   </span>
                 </div>
 
-                {/* 明細（items）アコーディオン表示部分 */}
                 {hasItems && (
                   <div className="mt-2 pt-2 border-t border-slate-50">
                     <button
