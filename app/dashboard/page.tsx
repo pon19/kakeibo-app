@@ -169,16 +169,6 @@ export default function Dashboard() {
 
   // グラフデータ集計
   const chartData = useMemo(() => {
-  
-  // chartData の集計部分の確認用
-const chartData = useMemo(() => {
-  console.log('すべての取得データ (receipts):', receipts);
-  console.log('現在の絞り込みスコープ (scopedReceipts):', scopedReceipts);
-  console.log('今月の文字列 (currentMonthStr):', currentMonthStr);
-
-  const expenses = scopedReceipts.filter((r) => r.type !== 'income');
-  console.log('支出データ (expenses):', expenses);
-  
     const expenses = scopedReceipts.filter((r) => r.type !== 'income');
 
     if (viewMode === 'category') {
@@ -191,7 +181,7 @@ const chartData = useMemo(() => {
         });
       return Object.entries(map)
         .map(([name, value]) => ({ name, value }))
-        .sort((a, b) => b.value - a.value); // 金額が多い順にソート
+        .sort((a, b) => b.value - a.value);
     }
 
     if (viewMode === 'daily') {
@@ -250,7 +240,6 @@ const chartData = useMemo(() => {
     return [];
   }, [scopedReceipts, currentMonthStr, viewMode, customStartDate, customEndDate]);
 
-  // 円グラフ用 合計金額の計算（割合算出用）
   const pieTotalValue = useMemo(() => {
     if (viewMode !== 'category' && viewMode !== 'custom') return 0;
     return chartData.reduce((sum, item) => sum + (Number(item.value) || 0), 0);
@@ -441,7 +430,6 @@ const chartData = useMemo(() => {
           {chartData.length > 0 ? (
             <div className="space-y-4">
               <div className="h-48 w-full pt-2">
-                {/* カテゴリー別 / 任意期間（円グラフ） */}
                 {(viewMode === 'category' || viewMode === 'custom') && (
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
@@ -470,7 +458,6 @@ const chartData = useMemo(() => {
                   </ResponsiveContainer>
                 )}
 
-                {/* 日別推移（折れ線グラフ） */}
                 {viewMode === 'daily' && (
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartData as any}>
@@ -483,7 +470,6 @@ const chartData = useMemo(() => {
                   </ResponsiveContainer>
                 )}
 
-                {/* 月毎・年別推移（棒グラフ） */}
                 {(viewMode === 'monthly' || viewMode === 'yearly') && (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartData as any}>
@@ -497,7 +483,6 @@ const chartData = useMemo(() => {
                 )}
               </div>
 
-              {/* 🏷 カテゴリー別の内訳一覧（カテゴリー名・金額・割合を表示） */}
               {(viewMode === 'category' || viewMode === 'custom') && (
                 <div className="pt-2 border-t border-slate-100 space-y-2">
                   <p className="text-xs font-bold text-slate-600 mb-2">カテゴリー別内訳</p>
