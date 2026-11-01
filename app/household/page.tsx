@@ -24,11 +24,15 @@ export default function HouseholdPage() {
     try {
       const res = await fetch('/api/household');
       const data = await res.json();
+      console.log('📥 /api/household GET response:', data);
       if (data.success) {
-        setHousehold(data.household);
+        setHousehold(data.household || null);
+      } else {
+        setError(data.error || '情報の取得に失敗しました');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setError('通信エラーが発生しました');
     } finally {
       setLoading(false);
     }
@@ -66,7 +70,7 @@ export default function HouseholdPage() {
       const res = await fetch('/api/household', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'join', invite_code: inviteCodeInput }),
+        body: JSON.stringify({ action: 'join', invite_code: inviteCodeInput.trim() }),
       });
       const data = await res.json();
       if (data.success) {
@@ -117,13 +121,15 @@ export default function HouseholdPage() {
               <input
                 type="text"
                 readOnly
-                value={household.invite_code}
+                value={household.invite_code || ''}
                 className="w-full p-2.5 bg-slate-100 border border-slate-200 text-slate-800 rounded-xl text-center font-mono font-bold text-base"
               />
               <button
                 onClick={() => {
-                  navigator.clipboard.writeText(household.invite_code);
-                  alert('招待コードをコピーしました');
+                  if (household.invite_code) {
+                    navigator.clipboard.writeText(household.invite_code);
+                    alert('招待コードをコピーしました');
+                  }
                 }}
                 className="py-2.5 px-4 bg-indigo-600 text-white text-xs font-medium rounded-xl hover:bg-indigo-700 transition flex-shrink-0"
               >
@@ -170,7 +176,7 @@ export default function HouseholdPage() {
                 <input
                   type="text"
                   required
-                  placeholder="8桁の招待コードを入力"
+                  placeholder="招待コードを入力"
                   value={inviteCodeInput}
                   onChange={(e) => setInviteCodeInput(e.target.value)}
                   className="w-full p-2.5 border border-slate-200 bg-white text-slate-800 rounded-xl text-sm uppercase font-mono focus:outline-indigo-500"
