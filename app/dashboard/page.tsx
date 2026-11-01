@@ -170,7 +170,6 @@ export default function Dashboard() {
     if (viewMode === 'category') {
       const map: { [key: string]: number } = {};
       expenses
-        .filter((r) => r.purchased_at?.startsWith(currentMonthStr))
         .forEach((r) => {
           const cat = r.category || '未分類';
           map[cat] = (map[cat] || 0) + (Number(r.total_amount) || 0);
