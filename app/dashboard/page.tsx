@@ -19,8 +19,6 @@ import {
 interface ReceiptItem {
   name: string;
   price: number;
-  quantity?: number;
-  tax_rate?: number;
 }
 
 interface Receipt {
@@ -29,12 +27,8 @@ interface Receipt {
   merchant_name: string;
   purchased_at: string;
   total_amount: number;
-  discount_amount: number;
   category: string;
-  tax_type: 'inclusive' | 'exclusive';
-  tax_amount: number;
   items: ReceiptItem[];
-  created_at: string;
   is_shared?: boolean;
 }
 
@@ -47,22 +41,18 @@ export default function Dashboard() {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 予算関連 State
   const [budget, setBudget] = useState<number>(0);
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
   const [inputBudget, setInputBudget] = useState('');
   const [savingBudget, setSavingBudget] = useState(false);
 
-  // 明細展開用 State (展開中のID)
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  // グラフフィルター用 State
   const [viewMode, setViewMode] = useState<ViewMode>('category');
   const [scopeMode, setScopeMode] = useState<ScopeMode>('all');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
 
-  // 検索・絞り込みフィルター用 State
   const [searchKeyword, setSearchKeyword] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
 
@@ -74,6 +64,7 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
+    console.log('🔄 Dashboard mounted. Fetching receipts...');
     fetchReceipts();
     fetchBudget();
   }, []);
@@ -82,11 +73,14 @@ export default function Dashboard() {
     try {
       const res = await fetch('/api/receipts');
       const data = await res.json();
+      console.log('📥 API receipts response:', data);
       if (data.success) {
-        setReceipts(data.data);
+        setReceipts(data.data || []);
+      } else {
+        console.error('API Error:', data.error);
       }
     } catch (err) {
-      console.error('データの取得に失敗しました', err);
+      console.error('通信エラー:', err);
     } finally {
       setLoading(false);
     }
@@ -101,7 +95,7 @@ export default function Dashboard() {
         setInputBudget(String(data.budget || ''));
       }
     } catch (err) {
-      console.error('予算の取得に失敗しました', err);
+      console.error('予算取得エラー:', err);
     }
   };
 
@@ -153,13 +147,13 @@ export default function Dashboard() {
   const currentMonthExpense = useMemo(() => {
     return currentMonthReceipts
       .filter((r) => r.type !== 'income')
-      .reduce((sum, r) => sum + (r.total_amount || 0), 0);
+      .reduce((sum, r) => sum + (Number(r.total_amount) || 0), 0);
   }, [currentMonthReceipts]);
 
   const currentMonthIncome = useMemo(() => {
     return currentMonthReceipts
       .filter((r) => r.type === 'income')
-      .reduce((sum, r) => sum + (r.total_amount || 0), 0);
+      .reduce((sum, r) => sum + (Number(r.total_amount) || 0), 0);
   }, [currentMonthReceipts]);
 
   const budgetUsagePercent = useMemo(() => {
@@ -170,6 +164,8 @@ export default function Dashboard() {
   // グラフデータ集計
   const chartData = useMemo(() => {
     const expenses = scopedReceipts.filter((r) => r.type !== 'income');
+    console.log('📊 集計対象 expenses:', expenses);
+    console.log('📊 現在の viewMode:', viewMode);
 
     if (viewMode === 'category') {
       const map: { [key: string]: number } = {};
@@ -177,11 +173,13 @@ export default function Dashboard() {
         .filter((r) => r.purchased_at?.startsWith(currentMonthStr))
         .forEach((r) => {
           const cat = r.category || '未分類';
-          map[cat] = (map[cat] || 0) + (r.total_amount || 0);
+          map[cat] = (map[cat] || 0) + (Number(r.total_amount) || 0);
         });
-      return Object.entries(map)
+      const result = Object.entries(map)
         .map(([name, value]) => ({ name, value }))
         .sort((a, b) => b.value - a.value);
+      console.log('📊 カテゴリー別 chartData:', result);
+      return result;
     }
 
     if (viewMode === 'daily') {
@@ -190,11 +188,13 @@ export default function Dashboard() {
         .filter((r) => r.purchased_at?.startsWith(currentMonthStr))
         .forEach((r) => {
           const day = r.purchased_at?.slice(8, 10) ? `${r.purchased_at.slice(8, 10)}日` : '不明';
-          map[day] = (map[day] || 0) + (r.total_amount || 0);
+          map[day] = (map[day] || 0) + (Number(r.total_amount) || 0);
         });
-      return Object.entries(map)
+      const result = Object.entries(map)
         .sort((a, b) => a[0].localeCompare(b[0]))
         .map(([day, amount]) => ({ day, amount, name: day, value: amount }));
+      console.log('📊 日別 chartData:', result);
+      return result;
     }
 
     if (viewMode === 'monthly') {
@@ -202,7 +202,7 @@ export default function Dashboard() {
       expenses.forEach((r) => {
         const month = r.purchased_at?.slice(0, 7);
         if (month) {
-          map[month] = (map[month] || 0) + (r.total_amount || 0);
+          map[month] = (map[month] || 0) + (Number(r.total_amount) || 0);
         }
       });
       return Object.entries(map)
@@ -215,7 +215,7 @@ export default function Dashboard() {
       expenses.forEach((r) => {
         const year = r.purchased_at?.slice(0, 4);
         if (year) {
-          map[year] = (map[year] || 0) + (r.total_amount || 0);
+          map[year] = (map[year] || 0) + (Number(r.total_amount) || 0);
         }
       });
       return Object.entries(map)
@@ -229,7 +229,7 @@ export default function Dashboard() {
         const date = r.purchased_at?.slice(0, 10) || '';
         if ((!customStartDate || date >= customStartDate) && (!customEndDate || date <= customEndDate)) {
           const cat = r.category || '未分類';
-          map[cat] = (map[cat] || 0) + (r.total_amount || 0);
+          map[cat] = (map[cat] || 0) + (Number(r.total_amount) || 0);
         }
       });
       return Object.entries(map)
@@ -278,7 +278,6 @@ export default function Dashboard() {
 
   return (
     <main className="min-h-screen bg-slate-50 p-4 max-w-md mx-auto pb-24">
-      {/* 画面ヘッダー */}
       <header className="my-4 text-center">
         <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">
           集計・分析
@@ -286,7 +285,7 @@ export default function Dashboard() {
         <p className="text-xs text-slate-400 mt-1">支出・収入・予算の進捗状況</p>
       </header>
 
-      {/* スコープ切替タブ */}
+      {/* スコープ切替 */}
       <div className="flex bg-slate-200/70 p-1 rounded-xl text-xs font-bold mb-4">
         <button
           onClick={() => setScopeMode('all')}
@@ -514,7 +513,7 @@ export default function Dashboard() {
             </div>
           ) : (
             <p className="text-xs text-center text-slate-400 py-8 bg-slate-50 rounded-xl">
-              表示可能な集計データがありません
+              表示可能な集計データがありません (今月のデータや選択したスコープを確認してください)
             </p>
           )}
         </div>
@@ -572,7 +571,7 @@ export default function Dashboard() {
                       r.type === 'income' ? 'text-emerald-600' : 'text-slate-900'
                     }`}
                   >
-                    {r.type === 'income' ? '+' : ''}¥{(r.total_amount || 0).toLocaleString()}
+                    {r.type === 'income' ? '+' : ''}¥{(Number(r.total_amount) || 0).toLocaleString()}
                   </span>
                 </div>
 
@@ -592,7 +591,7 @@ export default function Dashboard() {
                           <div key={idx} className="flex justify-between items-center py-0.5">
                             <span className="truncate pr-2">• {item.name || '品名なし'}</span>
                             <span className="font-medium text-slate-900 shrink-0">
-                              ¥{(item.price || 0).toLocaleString()}
+                              ¥{(Number(item.price) || 0).toLocaleString()}
                             </span>
                           </div>
                         ))}
