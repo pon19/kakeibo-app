@@ -169,6 +169,16 @@ export default function Dashboard() {
 
   // グラフデータ集計
   const chartData = useMemo(() => {
+  
+  // chartData の集計部分の確認用
+const chartData = useMemo(() => {
+  console.log('すべての取得データ (receipts):', receipts);
+  console.log('現在の絞り込みスコープ (scopedReceipts):', scopedReceipts);
+  console.log('今月の文字列 (currentMonthStr):', currentMonthStr);
+
+  const expenses = scopedReceipts.filter((r) => r.type !== 'income');
+  console.log('支出データ (expenses):', expenses);
+  
     const expenses = scopedReceipts.filter((r) => r.type !== 'income');
 
     if (viewMode === 'category') {
