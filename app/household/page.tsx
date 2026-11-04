@@ -15,6 +15,7 @@ interface Member {
   created_at: string;
   is_me: boolean;
   email?: string;
+  display_name?: string; // ← ここを追加します
 }
 
 export default function HouseholdPage() {
