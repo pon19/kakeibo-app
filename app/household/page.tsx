@@ -240,29 +240,30 @@ export default function HouseholdPage() {
           <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-3">
             <h3 className="text-sm font-bold text-slate-800">所属メンバー ({members.length}人)</h3>
             <div className="space-y-2">
-              {members.map((m) => (
-                <div key={m.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl text-xs">
-                  <div>
-                    <p className="font-semibold text-slate-700">
-                      {m.is_me ? 'あなた' : `ユーザー (${m.user_id.slice(0, 8)}...)`}
-                      <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                        m.role === 'owner' ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-700'
-                      }`}>
-                        {m.role === 'owner' ? '管理者' : 'メンバー'}
-                      </span>
-                    </p>
-                  </div>
-                  {/* 管理者かつ自分以外の場合、強制退会ボタンを表示 */}
-                  {(myRole === 'owner' || myRole === 'admin') && !m.is_me && (
-                    <button
-                      onClick={() => setConfirmModal({ type: 'remove', targetId: m.id, targetName: m.user_id.slice(0, 8) })}
-                      className="px-2.5 py-1 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg hover:bg-rose-100 transition font-medium"
-                    >
-                      退会させる
-                    </button>
-                  )}
+              {/* 所属メンバー一覧内の表示部分 */}
+            {members.map((m) => (
+              <div key={m.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl text-xs">
+                <div>
+                  <p className="font-semibold text-slate-700">
+                    {m.display_name} {m.is_me && <span className="text-indigo-600 font-bold">(あなた)</span>}
+                    <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                      m.role === 'owner' ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-700'
+                    }`}>
+                      {m.role === 'owner' ? '管理者' : 'メンバー'}
+                    </span>
+                  </p>
                 </div>
-              ))}
+                {/* 管理者かつ自分以外の場合、強制退会ボタンを表示 */}
+                {(myRole === 'owner' || myRole === 'admin') && !m.is_me && (
+                  <button
+                    onClick={() => setConfirmModal({ type: 'remove', targetId: m.id, targetName: m.display_name })}
+                    className="px-2.5 py-1 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg hover:bg-rose-100 transition font-medium"
+                  >
+                    退会させる
+                  </button>
+                )}
+              </div>
+            ))}
             </div>
           </div>
 

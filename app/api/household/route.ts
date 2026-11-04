@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
-// GET: 所属グループ・メンバー情報（メールアドレス付き）を取得
+// GET: 所属グループ・メンバー情報（名前付き）を取得
 export async function GET() {
   try {
     const supabase = await createClient();
@@ -11,7 +11,6 @@ export async function GET() {
       return NextResponse.json({ success: false, error: '認証エラー' }, { status: 401 });
     }
 
-    // ユーザーの所属しているグループメンバー情報を検索
     const { data: memberData } = await supabase
       .from('household_members')
       .select('household_id, role, households(id, name, invite_code)')
@@ -22,7 +21,6 @@ export async function GET() {
       return NextResponse.json({ success: true, household: null });
     }
 
-    // 同一グループのメンバー一覧を取得
     const { data: members, error: mError } = await supabase
       .from('household_members')
       .select('id, user_id, role, created_at')
@@ -30,17 +28,35 @@ export async function GET() {
 
     if (mError) throw mError;
 
-    // 各メンバーのメールアドレス情報を取得（Auth API または profiles から）
-    // ※Supabaseの仕様上、各ユーザーのemailを取得するためサービスロールやプロファイル参照を調整
+    // 各メンバーのプロフィール名（またはメタデータ・メールアドレス）を取得
     const formattedMembers = await Promise.all(
       (members || []).map(async (m) => {
-        // admin APIが使えない環境に備え、メールアドレスはIDから取得またはプレースホルダー
+        // profilesテーブルやメタデータから名前を取得する想定
+        // ※もし profiles テーブルがない場合は email や user_id の一部をフォールバックとして使用
+        let displayName = 'メンバー';
+        
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('name, nickname')
+          .eq('id', m.user_id)
+          .maybeSingle();
+
+        if (profile?.nickname) {
+          displayName = profile.nickname;
+        } else if (profile?.name) {
+          displayName = profile.name;
+        } else {
+          // profilesがない場合はuser_idの一部などを仮名に
+          displayName = `ユーザー (${m.user_id.slice(0, 6)})`;
+        }
+
         return {
           id: m.id,
           user_id: m.user_id,
           role: m.role,
           created_at: m.created_at,
           is_me: m.user_id === user.id,
+          display_name: displayName,
         };
       })
     );
