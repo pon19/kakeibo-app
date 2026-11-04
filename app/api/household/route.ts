@@ -96,11 +96,12 @@ export async function POST(req: NextRequest) {
     // 2. 招待コードでグループに参加
     if (action === 'join') {
       const { invite_code } = body;
-      const { data: household, error: findError } = await supabase
-        .from('households')
-        .select('*')
-        .eq('invite_code', invite_code?.trim())
-        .single();
+      
+      // SECURITY DEFINER関数を使って招待コードからグループを検索（RLSをバイパス）
+      const { data: householdsList, error: findError } = await supabase
+        .rpc('find_household_by_invite_code', { code: invite_code?.trim() });
+
+      const household = householdsList?.[0];
 
       if (findError || !household) {
         return NextResponse.json(
@@ -109,6 +110,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      // グループに参加メンバーとして登録
       const { error: joinError } = await supabase
         .from('household_members')
         .insert({
